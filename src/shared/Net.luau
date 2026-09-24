@@ -11,6 +11,8 @@
 		SetShowcased(itemId, showcased)
 		ShowcaseBest()                  fill the showcase with the most valuable items
 		BuySlot()                       buy the next showcase slot
+		BuyLuck()                       buy the next luck upgrade level
+		Debug(action, arg)              developer tools (Studio / admins only)
 
 	Events (server -> client):
 		Sync(kind, payload)             state changes, see server/Services/PlayerState
@@ -30,6 +32,8 @@ local FUNCTIONS = {
 	"SetShowcased",
 	"ShowcaseBest",
 	"BuySlot",
+	"BuyLuck",
+	"Debug",
 }
 local EVENTS = { "Sync", "Notify" }
 

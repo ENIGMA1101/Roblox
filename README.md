@@ -89,9 +89,29 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
 - **Money:** sell items, showcase your best items for cash per second (with diminishing
   returns, so the late game stays grindy), a small base income, 25% offline earnings, and a
   free Street Luxe case every 5 minutes.
+- **Luck upgrades:** 20 permanent levels bought with cash (🍀 on the HUD). Each level makes the
+  case's gem rarities 2.5% more likely and mutations 10% more likely, up to ×1.5 gem pulls and
+  ×3 mutations at level 20. Prices grow ×1.9 per level ($25K for the first, about $4.9B for the last), so
+  it's the long-term cash sink. It stacks with the Luck pass. The Luck window shows exactly how
+  the next level changes every case's gem chance and the rarest mutations, and the case preview
+  odds always include your current luck.
 - **Robux:** 5 gamepasses (2x Luck, Fast Open, Auto Open, Multi Open+, 2x Showcase Income),
   3 cash packs that scale with your income, and optional key bundles per case. Key bundles are
   only sold inside the case preview, directly beside the full odds list.
+
+## Testing the gem and mutations (developer tools)
+
+In Studio a 🛠️ **Dev** button appears on the HUD. It opens a panel where you can:
+
+- **Arm the next open:** *Force gem (random tier)*, *Force gem (top tier)*, or any mutation. They
+  combine, so gem + Crown Jewel works. The next open (including the free case) uses them on every
+  column, then they clear.
+- **Open any case directly** from the panel, ×1 to ×5, without walking to the stall.
+- Add $1M / $100M / $10B, make the free case ready, and set your luck level to 0, 10 or 20.
+
+The server checks permission on every request. The panel works in Studio, and in live servers only
+for UserIds listed in `GameConfig.Debug.Admins`; set `Debug.Enabled = false` to turn it off
+completely. Items from forced opens are real saved items, so don't use it on a live account you care about.
 
 ## Setting things up
 
@@ -101,7 +121,7 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
 | Brand names, price multipliers, rarity | `Config/Brands.luau` |
 | Case prices, odds, gem rarities, Robux keys | `Config/Cases.luau` |
 | Mutations | `Config/Mutations.luau` |
-| Starting cash, showcase, luck, spin timing, gem artwork | `Config/GameConfig.luau` |
+| Starting cash, showcase, luck pass, luck upgrades, dev tools, spin timing, gem artwork | `Config/GameConfig.luau` |
 | Gamepass and product ids | `Config/Monetization.luau` (set `StudioOwnsAllPasses = true` to test passes) |
 | Sound ids | `Config/Sounds.luau` (each has a suggested search) |
 
@@ -119,24 +139,29 @@ LUAU=/path/to/luau python3 tools/balance.py            # full report
 LUAU=/path/to/luau python3 tools/balance.py --quick    # EV table only
 ```
 
-It prints each case's expected value and return-to-player (RTP) with and without the Luck pass. It
-also runs a 400k-roll check that the roller matches the maths, and 15 simulated players
-over 80 hours. Current defaults:
+It prints each case's expected value and return-to-player (RTP): base, with the Luck pass, at max
+luck upgrades, and at max luck plus the pass. It also runs a 400k-roll check that the roller
+matches the maths, and 15 simulated players over 80 hours who also buy luck levels. Current defaults:
 
-| Case | Price | RTP | RTP with Luck | Gem | Median time to reach |
-|---|---|---|---|---|---|
-| Street Luxe | $650 | 107% | 123% | 1 in 263 | start |
-| Boutique Box | $5.2K | 91% | 112% | 1 in 276 | 40 min |
-| Atelier Crate | $41K | 85% | 95% | 1 in 153 | 2 h |
-| Penthouse Case | $305K | 80% | 89% | 1 in 185 | 6 h |
-| Monaco Vault | $2.35M | 75% | 81% | 1 in 200 | 12 h |
-| The Vermeil Vault | $10M | 69% | 78% | 1 in 31 | 18 h |
+| Case | Price | RTP | + Luck pass | Max luck | Max luck + pass | Gem (base) |
+|---|---|---|---|---|---|---|
+| Street Luxe | $650 | 107% | 123% | 132% | 162% | 1 in 263 |
+| Boutique Box | $5.2K | 91% | 112% | 122% | 160% | 1 in 276 |
+| Atelier Crate | $41K | 85% | 95% | 101% | 120% | 1 in 153 |
+| Penthouse Case | $305K | 80% | 89% | 94% | 112% | 1 in 185 |
+| Monaco Vault | $2.35M | 75% | 81% | 85% | 97% | 1 in 200 |
+| The Vermeil Vault | $10M | 69% | 78% | 83% | 99% | 1 in 31 |
+
+Median time for the simulated players to reach each case: Boutique ~1 h, Atelier ~3.5 h,
+Penthouse ~7 h, Monaco ~10 h, Vermeil Vault ~13 h. After that they're still at luck level ~15 at
+80 hours, so max luck is the endgame chase.
 
 The cheap cases pay slightly over 100% on purpose. Opening them is the early-game grind, and the
 absolute profit is too small to matter later. Higher tiers lose money on average; progress comes
 from the showcase and from jackpot pulls. The Luck pass boosts gem odds by only ×1.35 (mutations
 ×2) because gem pulls hold 20–60% of each case's value. A flat ×2 would push the cheap cases far
-past 100% and turn the pass into a money printer.
+past 100% and turn the pass into a money printer. Luck upgrades follow the same rule: the two
+top cases stay under 100% even at max luck with the pass.
 
 ## Advice for the best result
 

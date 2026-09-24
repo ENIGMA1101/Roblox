@@ -70,4 +70,16 @@ function Actions.buySlot(): Result
 	return result
 end
 
+function Actions.buyLuck(): Result
+	local result = call("BuyLuck")
+	if result.ok then
+		Sound.play("Purchase")
+	end
+	return result
+end
+
+function Actions.debug(action: string, arg: any?): Result
+	return call("Debug", action, arg)
+end
+
 return Actions

@@ -41,6 +41,27 @@ local GameConfig = {
 	-- doubling them would push cheap cases past 100% return and make the pass a money printer.
 	LuckPass = { Gem = 1.35, Mutation = 2 },
 
+	-- Luck upgrades bought with cash (the long-term cash sink). Each level adds GemPerLevel to
+	-- the gem-rarity multiplier and MutationPerLevel to the mutation multiplier. They stack
+	-- multiplicatively with the Luck pass. Level L -> L+1 costs BasePrice * PriceGrowth ^ L.
+	-- Defaults: level 20 = x1.5 gem pulls and x3 mutations; the last level costs ~$4.9B. Gem luck is
+	-- kept modest so the top cases stay under 100% return even at max luck with the pass
+	-- (check with tools/balance.py).
+	LuckUpgrades = {
+		MaxLevel = 20,
+		BasePrice = 25000,
+		PriceGrowth = 1.9,
+		GemPerLevel = 0.025,
+		MutationPerLevel = 0.1,
+	},
+
+	-- Developer tools (force the gem, force mutations, free cash). Always available in Studio.
+	-- In live servers only for the UserIds listed in Admins. Items made with it are real.
+	Debug = {
+		Enabled = true,
+		Admins = {} :: { number },
+	},
+
 	-- Client spin timings in seconds. FastMultiplier applies with the Fast Open pass.
 	Spin = {
 		Duration = 5.0,

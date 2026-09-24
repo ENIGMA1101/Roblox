@@ -10,6 +10,8 @@
 		"Keys"     {[caseId] = count}
 		"Income"   cash per second
 		"Slots"    showcase slot count
+		"Luck"     luck upgrade level
+		"Force"    developer overrides armed for the next open ({ Gem?, Mutation? })
 		"FreeCase" unix time the free case is ready
 		"Passes"   {[passKey] = true}
 		"Stats"    lifetime stats
@@ -17,6 +19,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
@@ -63,6 +66,17 @@ function PlayerState.bind(name: string, handler: (Player, Data, ...any) -> { [st
 	end
 end
 
+-- Upgrade level and the Luck pass combined. Used for every roll.
+function PlayerState.luck(player: Player): Catalog.Luck
+	local data = DataService.get(player)
+	return Catalog.luckFor(if data then data.LuckLevel else 0, Passes.has(player, "Luck"))
+end
+
+function PlayerState.debugAllowed(player: Player): boolean
+	local debug = GameConfig.Debug
+	return debug.Enabled and (RunService:IsStudio() or table.find(debug.Admins, player.UserId) ~= nil)
+end
+
 function PlayerState.snapshot(player: Player): { [string]: any }?
 	local data = DataService.get(player)
 	if not data then
@@ -72,6 +86,8 @@ function PlayerState.snapshot(player: Player): { [string]: any }?
 		Cash = data.Cash,
 		Items = data.Items,
 		ShowcaseSlots = data.ShowcaseSlots,
+		LuckLevel = data.LuckLevel,
+		Debug = PlayerState.debugAllowed(player),
 		Keys = data.Keys,
 		FreeCaseReadyAt = data.LastFreeCase + GameConfig.FreeCase.Cooldown,
 		Passes = Passes.list(player),

@@ -19,6 +19,9 @@ local State = {
 	Items = {} :: { [string]: Catalog.Owned },
 	Keys = {} :: { [string]: number },
 	ShowcaseSlots = GameConfig.Showcase.BaseSlots,
+	LuckLevel = 0,
+	Debug = false,
+	Force = {} :: { Gem: string?, Mutation: string? },
 	FreeCaseReadyAt = 0,
 	Passes = {} :: { [string]: boolean },
 	Stats = {} :: { [string]: number },
@@ -36,6 +39,8 @@ local function apply(kind: string, payload: any)
 		State.Items = payload.Items
 		State.Keys = payload.Keys
 		State.ShowcaseSlots = payload.ShowcaseSlots
+		State.LuckLevel = payload.LuckLevel or 0
+		State.Debug = payload.Debug == true
 		State.FreeCaseReadyAt = payload.FreeCaseReadyAt
 		State.Passes = payload.Passes
 		State.Stats = payload.Stats
@@ -58,6 +63,10 @@ local function apply(kind: string, payload: any)
 		State.Keys = payload
 	elseif kind == "Slots" then
 		State.ShowcaseSlots = payload
+	elseif kind == "Luck" then
+		State.LuckLevel = payload
+	elseif kind == "Force" then
+		State.Force = payload
 	elseif kind == "FreeCase" then
 		State.FreeCaseReadyAt = payload
 	elseif kind == "Passes" then
@@ -87,7 +96,7 @@ function State.maxOpen(): number
 end
 
 function State.luck(): Catalog.Luck
-	return if State.hasPass("Luck") then GameConfig.LuckPass else Catalog.NoLuck
+	return Catalog.luckFor(State.LuckLevel, State.hasPass("Luck"))
 end
 
 function State.serverNow(): number

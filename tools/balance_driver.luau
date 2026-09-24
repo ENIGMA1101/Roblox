@@ -34,13 +34,17 @@ print(
 		.. lpad("price", 9)
 		.. lpad("EV", 9)
 		.. lpad("RTP", 8)
-		.. lpad("RTP luck", 10)
+		.. lpad("RTP pass", 10)
+		.. lpad("max luck", 10)
+		.. lpad("max+pass", 10)
 		.. lpad("gem", 14)
 		.. lpad("gem EV", 9)
 )
 for _, case in Catalog.Cases do
 	local ev = Catalog.expectedValue(case)
 	local ev2 = Catalog.expectedValue(case, GameConfig.LuckPass)
+	local evMax = Catalog.expectedValue(case, Catalog.luckFor(GameConfig.LuckUpgrades.MaxLevel, false))
+	local evMaxPass = Catalog.expectedValue(case, Catalog.luckFor(GameConfig.LuckUpgrades.MaxLevel, true))
 	local gemChance, gemEv = 0, 0
 	for _, entry in Catalog.rarityOdds(case, 1) do
 		if Catalog.isGem(case, entry.Id) then
@@ -54,6 +58,8 @@ for _, case in Catalog.Cases do
 			.. lpad(Format.short(ev), 9)
 			.. lpad(string.format("%.1f%%", ev / case.Price * 100), 8)
 			.. lpad(string.format("%.1f%%", ev2 / case.Price * 100), 10)
+			.. lpad(string.format("%.1f%%", evMax / case.Price * 100), 10)
+			.. lpad(string.format("%.1f%%", evMaxPass / case.Price * 100), 10)
 			.. lpad(Format.oneIn(gemChance), 14)
 			.. lpad(string.format("%.0f%%", gemEv / ev * 100), 9)
 	)
@@ -119,7 +125,8 @@ end
 	A simple player: claims the free case whenever ready, opens the priciest case it can
 	afford 3 of (else as many as it can of the priciest affordable one), keeps its best
 	items in the showcase, sells everything else, and buys a showcase slot when it has
-	twice the price. No passes, no Robux, no offline time.
+	twice the price, and a luck level when it has three times the price. No passes, no
+	Robux, no offline time.
 ]]
 
 local Spin = GameConfig.Spin
@@ -140,6 +147,7 @@ local CHECKPOINTS = { 0.25, 0.5, 1, 2, 4, 8, 16, 32, 48, 80 }
 local function runBot()
 	local cash = GameConfig.StartingCash
 	local slots = Showcase.BaseSlots
+	local luckLevel = 0
 	local shown: { number } = {} -- showcased values, ascending
 	local income = Showcase.BaseIncome
 	local t = 0
@@ -177,20 +185,28 @@ local function runBot()
 			for _, v in shown do
 				total += v
 			end
-			snapshots[nextCheckpoint] = { cash = cash, income = income, showcase = total, slots = slots }
+			snapshots[nextCheckpoint] =
+				{ cash = cash, income = income, showcase = total, slots = slots, luck = luckLevel }
 			nextCheckpoint += 1
 		end
 	end
 
 	while t < HOURS * 3600 do
 		if t >= freeReadyAt then
-			local roll = Roller.roll(freeCase, Catalog.NoLuck, rng)
+			local roll = Roller.roll(freeCase, Catalog.luckFor(luckLevel, false), rng)
 			receive(Catalog.valueOf(roll))
 			freeReadyAt = t + GameConfig.FreeCase.Cooldown
 			advance(batchSeconds(1, roll.Gem))
 		end
 
 		local extra = Showcase.SlotPrices[slots - Showcase.BaseSlots + 1]
+		local luckPrice = Catalog.luckUpgradePrice(luckLevel)
+		if luckPrice and cash >= luckPrice * 3 then
+			cash -= luckPrice
+			luckLevel += 1
+		end
+		local luck = Catalog.luckFor(luckLevel, false)
+
 		if extra and cash >= extra * 2 then
 			cash -= extra
 			slots += 1
@@ -219,7 +235,7 @@ local function runBot()
 			firstOpen[chosen.Id] = firstOpen[chosen.Id] or t
 			local gem = false
 			for _ = 1, count do
-				local roll = Roller.roll(chosen, Catalog.NoLuck, rng)
+				local roll = Roller.roll(chosen, luck, rng)
 				gem = gem or roll.Gem
 				receive(Catalog.valueOf(roll))
 			end
@@ -279,15 +295,24 @@ for _, case in Catalog.Cases do
 	)
 end
 
-print("\n" .. pad("played", 10) .. lpad("showcase", 12) .. lpad("income/s", 12) .. lpad("slots", 8) .. "   (medians)")
+print(
+	"\n"
+		.. pad("played", 10)
+		.. lpad("showcase", 12)
+		.. lpad("income/s", 12)
+		.. lpad("slots", 8)
+		.. lpad("luck", 6)
+		.. "   (medians)"
+)
 for index, hours in CHECKPOINTS do
-	local showcase, income, slots = {}, {}, {}
+	local showcase, income, slots, luck = {}, {}, {}, {}
 	for _, snapshots in snaps do
 		local snap = snapshots[index]
 		if snap then
 			table.insert(showcase, snap.showcase)
 			table.insert(income, snap.income)
 			table.insert(slots, snap.slots)
+			table.insert(luck, snap.luck)
 		end
 	end
 	print(
@@ -295,5 +320,6 @@ for index, hours in CHECKPOINTS do
 			.. lpad(Format.cash(median(showcase) or 0), 12)
 			.. lpad(Format.cash(median(income) or 0), 12)
 			.. lpad(tostring(median(slots) or 0), 8)
+			.. lpad(tostring(median(luck) or 0), 6)
 	)
 end

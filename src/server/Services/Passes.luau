@@ -9,7 +9,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Catalog = require(Shared.Catalog)
 local GameConfig = require(Shared.Config.GameConfig)
 local Monetization = require(Shared.Config.Monetization)
 local Signal = require(Shared.Signal)
@@ -54,13 +53,6 @@ end
 
 function Passes.list(player: Player): { [string]: boolean }
 	return table.clone(owned[player] or {})
-end
-
-function Passes.luck(player: Player): Catalog.Luck
-	if Passes.has(player, "Luck") then
-		return GameConfig.LuckPass
-	end
-	return Catalog.NoLuck
 end
 
 function Passes.maxOpen(player: Player): number

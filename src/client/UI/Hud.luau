@@ -10,8 +10,10 @@ local Format = require(Shared.Format)
 local GameConfig = require(Shared.Config.GameConfig)
 
 local State = require(script.Parent.Parent.State)
+local DevTools = require(script.Parent.DevTools)
 local Inventory = require(script.Parent.Inventory)
 local Kit = require(script.Parent.Kit)
+local Luck = require(script.Parent.Luck)
 local Root = require(script.Parent.Root)
 local Spinner = require(script.Parent.Spinner)
 local Store = require(script.Parent.Store)
@@ -104,7 +106,7 @@ function Hud.start()
 	local side = Kit.new("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 14, 0.5, 0),
-		Size = UDim2.fromOffset(86, 380),
+		Size = UDim2.fromOffset(86, 590),
 		BackgroundTransparency = 1,
 		Parent = layer,
 	}, { Kit.list(Enum.FillDirection.Vertical, 10, Enum.HorizontalAlignment.Left, Enum.VerticalAlignment.Center) })
@@ -117,7 +119,14 @@ function Hud.start()
 	sideButton(side, 3, "🛒", "Store", function()
 		Store.toggle()
 	end)
-	local freeButton = sideButton(side, 4, "🎁", "", claimFree)
+	sideButton(side, 4, "🍀", "Luck", function()
+		Luck.open()
+	end)
+	local freeButton = sideButton(side, 5, "🎁", "", claimFree)
+	local devButton = sideButton(side, 6, "🛠️", "Dev", function()
+		DevTools.open()
+	end)
+	devButton.Visible = State.Debug
 	freeLabel = freeButton:FindFirstChild("Caption") :: TextLabel
 	freeStroke = freeButton:FindFirstChildOfClass("UIStroke") :: UIStroke
 
@@ -137,6 +146,9 @@ function Hud.start()
 				end
 				shownCash.Value = target
 			end
+		end
+		if kind == "State" then
+			devButton.Visible = State.Debug
 		end
 		if kind == "Income" or kind == "State" then
 			incomeLabel.Text = `+{Format.cash(State.Income)}/s`

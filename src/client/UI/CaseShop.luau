@@ -301,7 +301,13 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Text = "Item chance = rarity chance × the item's share of that rarity. The brand is picked "
 			.. "after the item, then every item rolls for a mutation on its own. "
-			.. (if State.hasPass("Luck") then "Odds shown include your 2x Luck pass." else ""),
+			.. (
+				if State.LuckLevel > 0 or State.hasPass("Luck")
+					then `Odds shown include your luck (level {State.LuckLevel}{if State.hasPass("Luck")
+						then " + 2x Luck pass"
+						else ""}).`
+					else ""
+			),
 		TextSize = 14,
 		TextWrapped = true,
 		TextTruncate = Enum.TextTruncate.None,
@@ -536,7 +542,7 @@ function CaseShop.start()
 		if not window:isOpen() then
 			return
 		end
-		if kind == "Passes" or kind == "State" then
+		if kind == "Passes" or kind == "State" or kind == "Luck" then
 			-- Luck changes the odds list itself.
 			if selected then
 				renderPreview()

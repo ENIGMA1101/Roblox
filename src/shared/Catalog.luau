@@ -127,6 +127,39 @@ function Catalog.valueOf(owned: { I: string, B: string, M: string? }): number
 	return math.floor(item.Value * brand.Mult * mult + 0.5)
 end
 
+-- Luck --------------------------------------------------------------------------------------
+
+-- Combined luck from upgrade level and the Luck pass.
+function Catalog.luckFor(level: number, hasPass: boolean): Luck
+	local upgrades = GameConfig.LuckUpgrades
+	local clamped = math.clamp(level, 0, upgrades.MaxLevel)
+	local pass = if hasPass then GameConfig.LuckPass else Catalog.NoLuck
+	return {
+		Gem = (1 + upgrades.GemPerLevel * clamped) * pass.Gem,
+		Mutation = (1 + upgrades.MutationPerLevel * clamped) * pass.Mutation,
+	}
+end
+
+-- Price to go from `level` to `level + 1`, or nil at max level.
+function Catalog.luckUpgradePrice(level: number): number?
+	local upgrades = GameConfig.LuckUpgrades
+	if level >= upgrades.MaxLevel then
+		return nil
+	end
+	return math.floor(upgrades.BasePrice * upgrades.PriceGrowth ^ level + 0.5)
+end
+
+-- Total chance (0..1) that a case lands on the gem at this gem luck.
+function Catalog.gemChance(case: Case, gemLuck: number?): number
+	local chance = 0
+	for _, entry in Catalog.rarityOdds(case, gemLuck) do
+		if gemSets[case.Id][entry.Id] then
+			chance += entry.P
+		end
+	end
+	return chance
+end
+
 -- Showcase cash per second for one item of this value (before passes).
 function Catalog.incomeOf(value: number): number
 	local showcase = GameConfig.Showcase

@@ -69,13 +69,33 @@ function Roller.mutation(mutationLuck: number, rng: Rng): string?
 	return nil
 end
 
-function Roller.roll(case: Catalog.Case, luck: Catalog.Luck, rng: Rng): Roll
-	local rarityId = Roller.rarity(case, luck.Gem, rng)
+-- Developer override (Studio / admins only): Gem = "random" picks a gem rarity with its
+-- normal relative odds, "top" the case's best one; Mutation forces that mutation id.
+export type Force = { Gem: string?, Mutation: string? }
+
+function Roller.roll(case: Catalog.Case, luck: Catalog.Luck, rng: Rng, force: Force?): Roll
+	local rarityId
+	if force and force.Gem then
+		local gems = {}
+		for _, entry in Catalog.rarityOdds(case, luck.Gem) do
+			if Catalog.isGem(case, entry.Id) then
+				table.insert(gems, entry)
+			end
+		end
+		rarityId = if force.Gem == "top" then gems[#gems].Id else pick(gems, rng)
+	else
+		rarityId = Roller.rarity(case, luck.Gem, rng)
+	end
 	local item = Roller.item(rarityId, rng)
+	local mutation = if force
+			and force.Mutation
+			and Catalog.MutationById[force.Mutation]
+		then force.Mutation
+		else Roller.mutation(luck.Mutation, rng)
 	return {
 		I = item.Id,
 		B = Roller.brand(item, rng),
-		M = Roller.mutation(luck.Mutation, rng),
+		M = mutation,
 		Rarity = rarityId,
 		Gem = Catalog.isGem(case, rarityId),
 	}

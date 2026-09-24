@@ -12,6 +12,7 @@ local Roller = require(Shared.Roller)
 local Signal = require(Shared.Signal)
 
 local DataService = require(script.Parent.DataService)
+local DebugService = require(script.Parent.DebugService)
 local Passes = require(script.Parent.Passes)
 local PlayerState = require(script.Parent.PlayerState)
 local Throttle = require(script.Parent.Throttle)
@@ -43,10 +44,11 @@ local function inventoryError(data: Data, count: number): string?
 end
 
 local function roll(player: Player, data: Data, case: Catalog.Case, count: number): { Result }
-	local luck = Passes.luck(player)
+	local luck = PlayerState.luck(player)
+	local force = DebugService.takeForce(player)
 	local rolls = {}
 	for _ = 1, count do
-		table.insert(rolls, Roller.roll(case, luck, rng))
+		table.insert(rolls, Roller.roll(case, luck, rng, force))
 	end
 
 	local added = PlayerState.addItems(player, rolls)
