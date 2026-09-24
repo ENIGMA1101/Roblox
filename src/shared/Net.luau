@@ -17,6 +17,7 @@
 	Events (server -> client):
 		Sync(kind, payload)             state changes, see server/Services/PlayerState
 		Notify(text, kind)              toast message
+		PaidOpen(caseId, response)      a Robux case purchase was opened (results to animate)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,7 +36,7 @@ local FUNCTIONS = {
 	"BuyLuck",
 	"Debug",
 }
-local EVENTS = { "Sync", "Notify" }
+local EVENTS = { "Sync", "Notify", "PaidOpen" }
 
 local Net = {}
 

@@ -166,8 +166,25 @@ function StallBuilder.build(position: Vector3, facingDegrees: number?): Model
 		Color3.fromRGB(200, 200, 215),
 		false
 	)
-	local rows = #Catalog.Cases
-	for index, case in Catalog.Cases do
+	-- The screen lists the mixed progression cases plus a count of everything else.
+	local mixed, others = {}, 0
+	for _, case in Catalog.Cases do
+		if case.Kind == "Mixed" then
+			table.insert(mixed, case)
+		else
+			others += 1
+		end
+	end
+	local rows = #mixed + 1
+	label(
+		screenGui,
+		`+ {others} themed & Robux cases inside`,
+		UDim2.fromScale(0.88, 0.62 / rows * 0.7),
+		UDim2.fromScale(0.06, 0.33 + #mixed * 0.62 / rows),
+		GEM_GOLD,
+		false
+	)
+	for index, case in mixed do
 		local rowHeight = 0.62 / rows
 		local y = 0.33 + (index - 1) * rowHeight
 		label(

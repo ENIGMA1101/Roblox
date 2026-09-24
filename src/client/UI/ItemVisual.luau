@@ -272,6 +272,24 @@ function ItemVisual.card(owned: Catalog.Owned, options: CardOptions?): TextButto
 		})
 	end
 
+	if owned.N then
+		Kit.label({
+			Name = "Serial",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -6, 0, if flags ~= "" then 26 else 6),
+			Size = UDim2.fromOffset(60, 16),
+			BackgroundTransparency = 0,
+			BackgroundColor3 = Catalog.RarityById.Limited.Color,
+			Text = "#" .. Format.commas(owned.N),
+			TextScaled = true,
+			FontFace = Fonts.Heavy,
+			TextColor3 = Color3.fromRGB(10, 20, 26),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			ZIndex = 3,
+			Parent = card,
+		})
+	end
+
 	if opts.OnClick then
 		local onClick = opts.OnClick
 		card.Activated:Connect(function()

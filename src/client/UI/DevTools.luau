@@ -140,7 +140,7 @@ function DevTools.start()
 		end)
 	end
 
-	heading(scroller, 5, "2. Open a case (uses your cash or keys)")
+	heading(scroller, 5, "2. Open a case (cash/keys; Robux cases open free here)")
 	local countRow = buttonRow(scroller, 6)
 	local countButtons = {}
 	for count = 1, GameConfig.MaxOpenWithPass do
@@ -160,7 +160,11 @@ function DevTools.start()
 	local caseRow = buttonRow(scroller, 7, 44)
 	for index, case in Catalog.Cases do
 		button(caseRow, index, `{case.Icon} {case.Name}`, case.Color:Lerp(Colors.Panel, 0.45), function()
-			Spinner.run(case, math.min(openCount, State.maxOpen()))
+			if case.Paid then
+				Spinner.run(case, 1, "devrobux")
+			else
+				Spinner.run(case, math.min(openCount, State.maxOpen()))
+			end
 		end)
 	end
 

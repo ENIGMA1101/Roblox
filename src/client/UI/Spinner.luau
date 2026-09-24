@@ -57,6 +57,8 @@ type Result = {
 	I: string,
 	B: string,
 	M: string?,
+	N: number?,
+	Supply: number?,
 	Gem: boolean,
 	Value: number,
 }
@@ -660,7 +662,10 @@ local function reveal(column: Column, result: Result, speed: number)
 
 	column.NameLabel.Text = item.Name
 	column.NameLabel.TextColor3 = rarity.Color
-	column.BrandLabel.Text = `{Catalog.Brands[result.B].Name}  •  {rarity.Name}`
+	local serial = if result.N
+		then `  •  #{Format.commas(result.N)}{if result.Supply then " / " .. Format.commas(result.Supply) else ""}`
+		else ""
+	column.BrandLabel.Text = `{Catalog.Brands[result.B].Name}  •  {rarity.Name}{serial}`
 	column.ValueLabel.Text = "$0"
 	column.Info.Visible = true
 
@@ -979,7 +984,15 @@ local function play(case: Catalog.Case, results: { Result }): { Column }
 	return columns
 end
 
-local function updateAgainButton(case: Catalog.Case, count: number)
+local function updateAgainButton(case: Catalog.Case, count: number, mode: string?)
+	if case.Paid then
+		againButton.Text = if mode == "devrobux"
+			then "Open again (dev, free)"
+			else `Open again (R$ {Actions.robuxPrice(case)})`
+		againButton.Active = true
+		againButton.TextTransparency = 0
+		return
+	end
 	local keys = math.min(State.keysFor(case.Id), count)
 	local cost = (count - keys) * case.Price
 	local label = if count > 1 then `Open {count} again` else "Open again"
@@ -993,9 +1006,9 @@ local function updateAgainButton(case: Catalog.Case, count: number)
 	againButton.TextTransparency = if againButton.Active then 0 else 0.5
 end
 
-local function waitForChoice(case: Catalog.Case, count: number, autoAllowed: boolean): string
+local function waitForChoice(case: Catalog.Case, count: number, autoAllowed: boolean, mode: string?): string
 	choice = nil
-	updateAgainButton(case, count)
+	updateAgainButton(case, count, mode)
 	local autoAt = if autoOn and autoAllowed then os.clock() + SpinConfig.AutoOpenDelay else math.huge
 	while true do
 		if choice == "again" and not State.canAfford(case, count) then
@@ -1020,19 +1033,36 @@ local function waitForChoice(case: Catalog.Case, count: number, autoAllowed: boo
 	return choice :: string
 end
 
--- Opens a case (or the free case) and runs the whole spin loop until the player closes it.
-function Spinner.run(case: Catalog.Case, count: number, free: boolean?)
+--[[
+	Opens a case and runs the whole spin loop until the player closes it.
+	mode: nil = pay with cash/keys, "free" = the free case, "robux" = buy a Robux case (prompts
+	the purchase, spins when the server opens it), "devrobux" = developer test open of a
+	Robux case without paying.
+]]
+function Spinner.run(case: Catalog.Case, count: number, mode: string?)
 	if busy then
 		return
 	end
 	busy = true
 	Window.closeAll()
 
-	local request: Request = if free
-		then Actions.claimFreeCase
-		else function()
+	local free = mode == "free"
+	local request: Request
+	if free then
+		request = Actions.claimFreeCase
+	elseif mode == "robux" then
+		request = function()
+			return Actions.openPaid(case)
+		end
+	elseif mode == "devrobux" then
+		request = function()
+			return Actions.debug("OpenPaid", case.Id)
+		end
+	else
+		request = function()
 			return Actions.openCase(case.Id, count)
 		end
+	end
 
 	local columns: { Column } = {}
 	local shown = false
@@ -1052,6 +1082,10 @@ function Spinner.run(case: Catalog.Case, count: number, free: boolean?)
 		headerLabel.TextColor3 = case.Color
 		subLabel.Text = if free
 			then "Free case!"
+			elseif mode == "devrobux" then "Developer test open (free)  •  guaranteed mutation"
+			elseif case.Paid then `Robux case  •  guaranteed mutation{if case.Limited
+				then "  •  Limited supply"
+				else ""}`
 			elseif response.KeysUsed > 0 then `Opening {count}  •  used {response.KeysUsed} key{if response.KeysUsed
 					== 1
 				then ""
@@ -1091,7 +1125,7 @@ function Spinner.run(case: Catalog.Case, count: number, free: boolean?)
 			end
 		end
 
-		local picked = waitForChoice(case, count, not bigHit)
+		local picked = waitForChoice(case, count, not bigHit and not case.Paid, mode)
 		while picked == "sell" do
 			local sold = Actions.sell(ids)
 			if sold.ok then
@@ -1106,7 +1140,7 @@ function Spinner.run(case: Catalog.Case, count: number, free: boolean?)
 				sellButton.Active = false
 				sellButton.TextTransparency = 0.5
 			end
-			picked = waitForChoice(case, count, false)
+			picked = waitForChoice(case, count, false, mode)
 		end
 		if picked ~= "again" then
 			break

@@ -41,6 +41,11 @@ local GameConfig = {
 	-- doubling them would push cheap cases past 100% return and make the pass a money printer.
 	LuckPass = { Gem = 1.35, Mutation = 2 },
 
+	-- Luck raises a case's gem odds only until the case would return MaxRTP of its price on
+	-- average, but always allows at least MinGain x the case's normal value. Without this, cases
+	-- that keep most of their value behind the gem would pay back far more than they cost.
+	LuckLimits = { MaxRTP = 0.92, MinGain = 1.15 },
+
 	-- Luck upgrades bought with cash (the long-term cash sink). Each level adds GemPerLevel to
 	-- the gem-rarity multiplier and MutationPerLevel to the mutation multiplier. They stack
 	-- multiplicatively with the Luck pass. Level L -> L+1 costs BasePrice * PriceGrowth ^ L.
@@ -73,6 +78,21 @@ local GameConfig = {
 		AutoOpenDelay = 1.0,
 		FastMultiplier = 0.45,
 	},
+
+	-- Themed cases: automatic odds and gem.
+	ThemedCases = {
+		-- Return-to-player by price when a case has no RTP: RTP = Base - Slope * log10(price / 1000),
+		-- clamped to [Min, Max]. ~98% at $1K, ~86% at $100K, ~74% at $10M.
+		RTP = { Base = 0.98, Slope = 0.06, Min = 0.68, Max = 1.0 },
+		-- Items worth at least this many times the case's expected pull hide behind the gem...
+		GemMultiple = 10,
+		-- ...and if none are, the single best item does when it's worth this many times.
+		FallbackGemMultiple = 4,
+	},
+
+	-- If a Limited case sells out between the purchase prompt and the receipt, the buyer gets
+	-- this much cash instead (it can't be refunded in Robux).
+	SoldOutCash = 5000000,
 
 	-- "rbxassetid://..." artwork for the yellow gem on the reel. Leave "" to use the built-in
 	-- drawn gem.

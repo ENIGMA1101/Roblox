@@ -131,4 +131,111 @@ local Brands: { [string]: Brand } = {
 	boraborah = { Name = "Bora Borah", Mult = 1.18, Weight = 14 },
 }
 
+-- Houses that only appear on specific products (one brand per item), so their multiplier is
+-- neutral: the item's Value is its price.
+local SINGLE_PRODUCT_HOUSES: { [string]: string } = {
+	-- Streetwear & sneakers
+	nikey = "Nikey",
+	yeezus = "Yeezus",
+	newbalanse = "New Balanse",
+	monke = "A Bathing Monke",
+	stussie = "Stussie",
+	palase = "Palase",
+	fearofgawd = "Fear of Gawd",
+	chromeheartz = "Chrome Heartz",
+	-- Fragrance
+	kurkjin = "Maison Kurkjin",
+	lelabbo = "Le Labbo",
+	clivekristen = "Clive Kristen",
+	-- Tech
+	sonee = "Sonee",
+	nintendough = "Nintendough",
+	beets = "Beets",
+	bowse = "Bowse",
+	leeca = "Leeca",
+	hasselbladd = "Hasselbladd",
+	djay = "DJay",
+	rigforge = "RigForge",
+	-- Watches
+	casioh = "Casioh",
+	seeko = "Seeko",
+	grandseeko = "Grand Seeko",
+	tudr = "Tudr",
+	hublo = "Hublo",
+	vasheron = "Vasheron Konstantin",
+	jakob = "Jakob & Ko",
+	-- Bags & jewellery
+	fendy = "Fendy",
+	yslorent = "Yves St Lorent",
+	celeen = "Celeen",
+	goyardd = "Goyardd",
+	bottega = "Bottega Venetta",
+	iceboxco = "Ice Box Co.",
+	graaf = "Graaf",
+	faberje = "Fabergé House",
+	-- Drinks
+	patrone = "Patrone",
+	hennesy = "Hennesy",
+	claseazool = "Clase Azool",
+	macallen = "Macallen",
+	louie13 = "Louie XIII",
+	romanay = "Domaine Romanay",
+	-- Collectibles
+	pokemann = "Pocket Monsterz",
+	topz = "Topz",
+	leggo = "Leggo",
+	kawz = "Kawz",
+	medicomm = "Medicomm",
+	funkoh = "Funkoh",
+	marvelus = "Marvelus Comics",
+	-- Cars & bikes
+	teslo = "Teslo",
+	bmv = "BMV",
+	mercedez = "Mercedez",
+	rangrover = "Rang Rover",
+	maybock = "Maybock",
+	awdi = "Awdi",
+	vespah = "Vespah",
+	ducatti = "Ducatti",
+	harleydavidsun = "Harley-Davidsun",
+	kawasakee = "Kawasakee",
+	mvagoosta = "MV Agoosta",
+	ecossee = "Ecossee",
+	nimen = "Nimen Customs",
+	vyruss = "Vyruss",
+	specialised = "Specialised",
+	-- Water & air
+	seadu = "Sea-Du",
+	wallee = "Wallee",
+	tritton = "Tritton Subs",
+	benningtun = "Benningtun",
+	cirruss = "Cirruss",
+	robinsun = "Robinsun",
+	hondajett = "HondaJett",
+	boing = "Boing",
+	concordia = "Concordia",
+	-- Art & property
+	warhole = "Andee Warhole",
+	basquiet = "Basquiet",
+	davinchi = "Da Vinchi",
+	koonz = "Koonz",
+	hylands = "Hylands Estates",
+	bordo = "Château Bordo",
+	-- Robux-case houses
+	velvetrope = "Velvet Rope",
+	blackcard = "Obsidian Card Co.",
+	highroller = "High Roller",
+	popmartt = "Pop Martt",
+	stanlee = "Stanlee",
+	prym = "Prym",
+	brainrotstudio = "Brainrot Studio",
+	pixelapeclub = "Pixel Ape Club",
+	fixx = "Fixx Chocolatier",
+}
+
+for id, name in SINGLE_PRODUCT_HOUSES do
+	assert(Brands[id] == nil, `Brands: "{id}" is defined twice`)
+	Brands[id] = { Name = name, Mult = 1, Weight = 1 }
+end
+
 return Brands

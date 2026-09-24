@@ -12,6 +12,7 @@
 		"Slots"    showcase slot count
 		"Luck"     luck upgrade level
 		"Force"    developer overrides armed for the next open ({ Gem?, Mutation? })
+		"Serials"  copies issued so far per numbered item ({ [itemId] = count })
 		"FreeCase" unix time the free case is ready
 		"Passes"   {[passKey] = true}
 		"Stats"    lifetime stats
@@ -217,7 +218,7 @@ function PlayerState.addItems(player: Player, rolls: { Roller.Roll }): { NewItem
 	for _, roll in rolls do
 		local id = tostring(data.NextId)
 		data.NextId += 1
-		local owned: Catalog.Owned = { I = roll.I, B = roll.B, M = roll.M, T = os.time() }
+		local owned: Catalog.Owned = { I = roll.I, B = roll.B, M = roll.M, N = roll.N, T = os.time() }
 		data.Items[id] = owned
 		added[id] = owned
 		table.insert(list, { Id = id, Owned = owned })

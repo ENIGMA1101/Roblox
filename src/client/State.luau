@@ -22,6 +22,7 @@ local State = {
 	LuckLevel = 0,
 	Debug = false,
 	Force = {} :: { Gem: string?, Mutation: string? },
+	Serials = {} :: { [string]: number },
 	FreeCaseReadyAt = 0,
 	Passes = {} :: { [string]: boolean },
 	Stats = {} :: { [string]: number },
@@ -67,6 +68,8 @@ local function apply(kind: string, payload: any)
 		State.LuckLevel = payload
 	elseif kind == "Force" then
 		State.Force = payload
+	elseif kind == "Serials" then
+		State.Serials = payload
 	elseif kind == "FreeCase" then
 		State.FreeCaseReadyAt = payload
 	elseif kind == "Passes" then
@@ -129,6 +132,14 @@ end
 
 function State.keysFor(caseId: string): number
 	return State.Keys[caseId] or 0
+end
+
+-- Limited copies left for an item (nil if its supply isn't capped).
+function State.remaining(item: Catalog.Item): number?
+	if not item.Supply then
+		return nil
+	end
+	return math.max((item.Supply :: number) - (State.Serials[item.Id] or 0), 0)
 end
 
 -- Can the player pay for `count` opens of this case right now (keys first, then cash)?

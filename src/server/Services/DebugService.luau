@@ -10,6 +10,7 @@
 		"ClearForce"
 		"AddCash", amount
 		"FreeCaseReady"
+		"OpenPaid", caseId                   open a Robux case without paying
 		"SetLuck", level
 
 	Forced items are real items saved to the player's data.
@@ -29,6 +30,9 @@ local PlayerState = require(script.Parent.PlayerState)
 type Data = DataService.Data
 
 local DebugService = {}
+
+-- Set by CaseService (which depends on this module) to open a Robux case for free.
+DebugService.openPaid = nil :: ((Player, string) -> { [string]: any })?
 
 local forces: { [Player]: Roller.Force } = {}
 
@@ -64,6 +68,12 @@ local function handle(player: Player, data: Data, action: any, arg: any)
 			return { ok = false, error = "Unknown mutation." }
 		end
 		arm(player).Mutation = arg
+	elseif action == "OpenPaid" then
+		local openPaid = DebugService.openPaid
+		if type(arg) ~= "string" or not openPaid then
+			return { ok = false, error = "Bad request." }
+		end
+		return openPaid(player, arg)
 	elseif action == "ClearForce" then
 		forces[player] = nil
 	elseif action == "AddCash" then

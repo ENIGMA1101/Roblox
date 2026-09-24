@@ -68,7 +68,7 @@ local function claimFree()
 		Toast.show(`Free case ready in {Format.clock(remaining)}`, "info")
 		return
 	end
-	Spinner.run(Catalog.CaseById[GameConfig.FreeCase.CaseId], 1, true)
+	Spinner.run(Catalog.CaseById[GameConfig.FreeCase.CaseId], 1, "free")
 end
 
 function Hud.start()

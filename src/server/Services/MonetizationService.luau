@@ -18,6 +18,7 @@ local Catalog = require(Shared.Catalog)
 local Format = require(Shared.Format)
 local Monetization = require(Shared.Config.Monetization)
 
+local CaseService = require(script.Parent.CaseService)
 local DataService = require(script.Parent.DataService)
 local PlayerState = require(script.Parent.PlayerState)
 
@@ -54,7 +55,11 @@ local function processReceipt(receipt: { [string]: any }): Enum.ProductPurchaseD
 
 	local purchaseId = tostring(receipt.PurchaseId)
 	if not table.find(data.Receipts, purchaseId) then
-		handler(player)
+		local ok, err = pcall(handler, player)
+		if not ok then
+			warn(`[Monetization] product {receipt.ProductId} for {player.Name} failed, will retry: {err}`)
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
 		DataService.recordReceipt(data, purchaseId)
 	end
 
@@ -82,6 +87,15 @@ function MonetizationService.start()
 				"good"
 			)
 		end)
+	end
+
+	for _, case in Catalog.Cases do
+		local paid = case.Paid
+		if paid then
+			register(paid.ProductId, function(player)
+				CaseService.openPaid(player, case)
+			end)
+		end
 	end
 
 	MarketplaceService.ProcessReceipt = processReceipt

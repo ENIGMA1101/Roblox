@@ -67,10 +67,25 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
 
 ## How the game plays
 
-- **Cases:** 6 tiers from $650 to $10M. Each case sets its own rarity odds and which rarities
-  hide behind the gem (cheap cases put Epic/Legendary behind it, the top case only Sovereign).
-- **Items:** 31 items over Common → Uncommon → Rare → Epic → Legendary → Mythic → Sovereign.
-  Each item has 1–5 parody brands (about 80 in total); prestige brands are rarer and worth up to ×1.25.
+- **Cases (32), in tabs in the case menu:**
+  - **Mixed (6):** the progression ladder from $800 to $12M. Each sets odds per rarity and pulls
+    from every item of that rarity.
+  - **Themed (22):** PackDraw-style cases for one category or one brand: Scent Lab, Drop Day,
+    Sneakerhead, Top Shelf, Tech Haul, Appel Store, Tick Tock, Bag Drop, Grail Hunter, Rolax Only,
+    Ice Box, Two Wheels, Hermez Vault, Haute Horlogerie, Dream Garage, Prancing Horse,
+    Hypercar Hunt, Open Water, The Gallery, Real Estate Mogul and Jet Set ($800 to $60M).
+    Their odds are worked out automatically from the price: cheaper items are likelier, and items worth
+    10× the case's average pull or more hide behind the gem.
+  - **Robux (4), open instantly on purchase, guaranteed mutation on every item:**
+    Velvet Rope (R$99), Black Card (R$333), Jackpot (R$777) and Pop Icons (R$999). Their items are
+    exclusive and numbered with a global serial (#1, #2, …). Pop Icons is fully **Limited**:
+    each item has a fixed supply shared by every server (e.g. only 10 Golden Lubbus will ever
+    exist), shown as "#7 / 10". Sold-out items drop out of the odds.
+- **Items:** 281 items in 17 categories (fashion, streetwear, sneakers, fragrance, tech,
+  watches, bags, jewellery, drinks, collectibles, cars, hypercars, bikes, boats, aviation, art,
+  property) plus 29 Robux exclusives. Rarity comes from value: Common → Uncommon → Rare → Epic →
+  Legendary → Mythic → Sovereign, plus **Limited** for the numbered Robux items. There are about 170
+  parody brands; most items are one specific product from one house.
 - **Mutations:** rolled independently on every pull. Values below are the defaults and can all be changed in `Config/Mutations.luau`:
 
   | Mutation | Value | Chance |
@@ -99,6 +114,19 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
   3 cash packs that scale with your income, and optional key bundles per case. Key bundles are
   only sold inside the case preview, directly beside the full odds list.
 
+## Selling the Robux cases
+
+1. Create a developer product for each Robux case on the Creator Dashboard, priced 99 / 333 /
+   777 / 999 Robux, and paste its id into that case's `Paid.ProductId` in `Config/Cases.luau`.
+2. Pressing **OPEN R$ …** in the case preview prompts the purchase. When it goes through, the
+   server opens the case inside `ProcessReceipt`, saves, and the spin plays straight away. If a
+   player leaves mid-purchase, the item is waiting in their inventory next time.
+3. Serial numbers live in a separate DataStore (`VermeilExchange_Serials_v1`). Never wipe or
+   rename it after launch, or numbering restarts and Limited supplies reset.
+
+Until a product id is set, the case shows "Not on sale yet". In Studio use **🛠️ Test open (dev,
+free)** in the preview, or the Dev panel, to open it without paying.
+
 ## Testing the gem and mutations (developer tools)
 
 In Studio a 🛠️ **Dev** button appears on the HUD. It opens a panel where you can:
@@ -119,7 +147,8 @@ completely. Items from forced opens are real saved items, so don't use it on a l
 |---|---|
 | Items, values, brands per item | `Config/Items.luau` |
 | Brand names, price multipliers, rarity | `Config/Brands.luau` |
-| Case prices, odds, gem rarities, Robux keys | `Config/Cases.luau` |
+| Cases: price, theme pool (category / brand / item list), RTP, Robux product | `Config/Cases.luau` |
+| Themed-case return curve, gem threshold, luck cap, sold-out payout | `Config/GameConfig.luau` (`ThemedCases`, `LuckLimits`, `SoldOutCash`) |
 | Mutations | `Config/Mutations.luau` |
 | Starting cash, showcase, luck pass, luck upgrades, dev tools, spin timing, gem artwork | `Config/GameConfig.luau` |
 | Gamepass and product ids | `Config/Monetization.luau` (set `StudioOwnsAllPasses = true` to test passes) |
@@ -139,29 +168,39 @@ LUAU=/path/to/luau python3 tools/balance.py            # full report
 LUAU=/path/to/luau python3 tools/balance.py --quick    # EV table only
 ```
 
-It prints each case's expected value and return-to-player (RTP): base, with the Luck pass, at max
-luck upgrades, and at max luck plus the pass. It also runs a 400k-roll check that the roller
-matches the maths, and 15 simulated players over 80 hours who also buy luck levels. Current defaults:
+For all 32 cases it prints the item count, expected value and return-to-player (RTP) (base, with
+the Luck pass, at max luck, and at max luck plus the pass), plus the gem chance and top item.
+It also runs a roll check that the roller matches the maths, and 15 simulated players over 80
+hours who open mixed cases and buy luck levels. A case whose price can't be reached by its
+items fails at startup with a message telling you what to change.
 
-| Case | Price | RTP | + Luck pass | Max luck | Max luck + pass | Gem (base) |
-|---|---|---|---|---|---|---|
-| Street Luxe | $650 | 107% | 123% | 132% | 162% | 1 in 263 |
-| Boutique Box | $5.2K | 91% | 112% | 122% | 160% | 1 in 276 |
-| Atelier Crate | $41K | 85% | 95% | 101% | 120% | 1 in 153 |
-| Penthouse Case | $305K | 80% | 89% | 94% | 112% | 1 in 185 |
-| Monaco Vault | $2.35M | 75% | 81% | 85% | 97% | 1 in 200 |
-| The Vermeil Vault | $10M | 69% | 78% | 83% | 99% | 1 in 31 |
+Mixed-case defaults:
 
-Median time for the simulated players to reach each case: Boutique ~1 h, Atelier ~3.5 h,
-Penthouse ~7 h, Monaco ~10 h, Vermeil Vault ~13 h. After that they're still at luck level ~15 at
-80 hours, so max luck is the endgame chase.
+| Case | Price | RTP | + Luck pass | Max luck + pass | Gem (base) |
+|---|---|---|---|---|---|
+| Street Luxe | $800 | 108% | 123% | 135% | 1 in 263 |
+| Boutique Box | $5.8K | 92% | 107% | 115% | 1 in 276 |
+| Atelier Crate | $48K | 85% | 95% | 109% | 1 in 153 |
+| Penthouse Case | $350K | 80% | 89% | 109% | 1 in 185 |
+| Monaco Vault | $2.65M | 75% | 83% | 103% | 1 in 200 |
+| The Vermeil Vault | $12M | 68% | 79% | 104% | 1 in 31 |
+
+Themed cases return ~100% at $800 down to ~71% at $60M, with gems between 1 in 28 and 1 in 480.
+The Robux cases average $124K (R$99), $557K (R$333), $2.2M (R$777) and $6.3M (R$999) per pull,
+guaranteed mutation included; change `TargetValue` on a case to adjust.
+
+Median time for the simulated players to reach each mixed case: Boutique ~45 min, Atelier
+~2.5 h, Penthouse ~6.5 h, Monaco ~12 h, Vermeil Vault ~17.5 h. They're still buying luck levels
+at 80 hours, so max luck is the endgame chase.
 
 The cheap cases pay slightly over 100% on purpose. Opening them is the early-game grind, and the
 absolute profit is too small to matter later. Higher tiers lose money on average; progress comes
 from the showcase and from jackpot pulls. The Luck pass boosts gem odds by only ×1.35 (mutations
 ×2) because gem pulls hold 20–60% of each case's value. A flat ×2 would push the cheap cases far
-past 100% and turn the pass into a money printer. Luck upgrades follow the same rule: the two
-top cases stay under 100% even at max luck with the pass.
+past 100% and turn the pass into a money printer. On top of that, luck is capped per case
+(`LuckLimits`): it raises gem odds only until a case would return about 92% of its price, though it
+always allows at least +15% value. With mutation luck on top, no case above $50K goes past ~109%,
+even at max luck with the pass. The Luck window and case previews show the capped odds.
 
 ## Advice for the best result
 

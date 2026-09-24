@@ -194,8 +194,9 @@ function Luck.start()
 	})
 	Kit.label({
 		Position = UDim2.fromOffset(0, 262),
-		Size = UDim2.new(1, 0, 0, 60),
-		Text = "Luck makes each case's gem rarities and every mutation more likely. Levels are permanent.",
+		Size = UDim2.new(1, 0, 0, 80),
+		Text = "Luck makes each case's gem items and every mutation more likely. Levels are permanent. "
+			.. "Each case's luck boost stops where the case would pay back its full price.",
 		TextSize = 14,
 		TextWrapped = true,
 		TextTruncate = Enum.TextTruncate.None,

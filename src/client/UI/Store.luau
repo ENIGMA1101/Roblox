@@ -178,7 +178,7 @@ function Store.render()
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Text = if shown == 0
 			then "Nothing for sale yet."
-			else "Case keys are sold inside each case's preview, right next to its full odds.",
+			else "Robux cases and case keys are in the case menu (Robux tab), right next to their full odds.",
 		TextWrapped = true,
 		TextTruncate = Enum.TextTruncate.None,
 		TextSize = 15,

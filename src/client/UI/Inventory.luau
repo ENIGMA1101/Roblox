@@ -159,6 +159,17 @@ local function renderDetails()
 	if mutation then
 		line(`✦ {mutation.Name} {Format.mult(mutation.Mult)}`, 20, Fonts.Heavy, mutation.Color)
 	end
+	if owned.N then
+		local supply = item.Supply
+		line(
+			if supply
+				then `Limited #{Format.commas(owned.N)} / {Format.commas(supply)}`
+				else `Numbered #{Format.commas(owned.N)} of {Format.commas(State.Serials[owned.I] or owned.N)} pulled`,
+			18,
+			Fonts.Heavy,
+			Catalog.RarityById.Limited.Color
+		)
+	end
 	line(Format.cashFull(value), 26, Fonts.Heavy, Colors.Gold)
 	line(`Showcase: +{Format.cash(State.itemIncome(owned))}/s`, 16, Fonts.Medium, Colors.Good)
 

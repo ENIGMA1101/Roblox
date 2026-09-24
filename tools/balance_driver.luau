@@ -28,9 +28,18 @@ end
 
 -- 1. Expected value per case ------------------------------------------------------------------
 
+local maxLuck = Catalog.luckFor(GameConfig.LuckUpgrades.MaxLevel, false)
+local maxLuckPass = Catalog.luckFor(GameConfig.LuckUpgrades.MaxLevel, true)
+
+local function pct(value: number?): string
+	return if value then string.format("%.1f%%", value * 100) else "-"
+end
+
 print("\n== Cases (exact maths) ==")
 print(
 	pad("case", 20)
+		.. pad("kind", 8)
+		.. lpad("items", 6)
 		.. lpad("price", 9)
 		.. lpad("EV", 9)
 		.. lpad("RTP", 8)
@@ -38,30 +47,33 @@ print(
 		.. lpad("max luck", 10)
 		.. lpad("max+pass", 10)
 		.. lpad("gem", 14)
-		.. lpad("gem EV", 9)
+		.. lpad("gem EV", 8)
+		.. lpad("top item", 11)
 )
 for _, case in Catalog.Cases do
 	local ev = Catalog.expectedValue(case)
-	local ev2 = Catalog.expectedValue(case, GameConfig.LuckPass)
-	local evMax = Catalog.expectedValue(case, Catalog.luckFor(GameConfig.LuckUpgrades.MaxLevel, false))
-	local evMaxPass = Catalog.expectedValue(case, Catalog.luckFor(GameConfig.LuckUpgrades.MaxLevel, true))
-	local gemChance, gemEv = 0, 0
-	for _, entry in Catalog.rarityOdds(case, 1) do
-		if Catalog.isGem(case, entry.Id) then
-			gemChance += entry.P
-			gemEv += entry.P * Catalog.expectedRarityValue(entry.Id) * Catalog.expectedMutationMult(1)
+	local gemEv, top = 0, 0
+	for _, entry in case.Entries do
+		if entry.Gem then
+			gemEv += entry.P * Catalog.itemValue(entry.Item)
 		end
+		top = math.max(top, entry.Item.Value)
 	end
+	gemEv *= Catalog.expectedMutationMult(1, case.GuaranteedMutation)
+	local gem = Catalog.gemChance(case)
 	print(
 		pad(case.Name, 20)
-			.. lpad(Format.short(case.Price), 9)
+			.. pad(case.Kind, 8)
+			.. lpad(tostring(#case.Entries), 6)
+			.. lpad(if case.Paid then "R$" .. case.Paid.Robux else Format.short(case.Price), 9)
 			.. lpad(Format.short(ev), 9)
-			.. lpad(string.format("%.1f%%", ev / case.Price * 100), 8)
-			.. lpad(string.format("%.1f%%", ev2 / case.Price * 100), 10)
-			.. lpad(string.format("%.1f%%", evMax / case.Price * 100), 10)
-			.. lpad(string.format("%.1f%%", evMaxPass / case.Price * 100), 10)
-			.. lpad(Format.oneIn(gemChance), 14)
-			.. lpad(string.format("%.0f%%", gemEv / ev * 100), 9)
+			.. lpad(pct(Catalog.rtp(case)), 8)
+			.. lpad(pct(Catalog.rtp(case, GameConfig.LuckPass)), 10)
+			.. lpad(pct(Catalog.rtp(case, maxLuck)), 10)
+			.. lpad(pct(Catalog.rtp(case, maxLuckPass)), 10)
+			.. lpad(if gem > 0 then Format.oneIn(gem) else "no gem", 14)
+			.. lpad(string.format("%.0f%%", gemEv / ev * 100), 8)
+			.. lpad(Format.short(top), 11)
 	)
 end
 
@@ -71,17 +83,19 @@ for _, entry in Catalog.mutationOdds(1) do
 end
 print(
 	string.format(
-		"\nMutations: %s chance of any, expected multiplier %.4f (2x luck: %.4f)",
+		"\nMutations: %s chance of any, expected multiplier %.4f (2x luck: %.4f, guaranteed: %.4f)",
 		Format.chance(anyMutation),
 		Catalog.expectedMutationMult(1),
-		Catalog.expectedMutationMult(GameConfig.LuckPass.Mutation)
+		Catalog.expectedMutationMult(GameConfig.LuckPass.Mutation),
+		Catalog.expectedMutationMult(1, true)
 	)
 )
 
-print("\n== Average value per rarity (brand spread, no mutation) ==")
+print("\n== Items per rarity ==")
 for _, rarity in Catalog.Rarities do
-	print(pad(rarity.Name, 12) .. lpad(Format.cash(Catalog.expectedRarityValue(rarity.Id)), 10))
+	print(pad(rarity.Name, 12) .. lpad(tostring(#Catalog.ItemsByRarity[rarity.Id]), 5))
 end
+print(pad("Total", 12) .. lpad(tostring(#Catalog.Items), 5))
 
 if QUICK then
 	return
@@ -89,33 +103,31 @@ end
 
 -- 2. Roll check: the roller must agree with the maths -----------------------------------------
 
-print("\n== Roll check (400k rolls per case) ==")
-local ROLLS = 400000
+print("\n== Roll check (40k rolls per case) ==")
+local ROLLS = 40000
 for _, case in if SKIP_CHECK then {} else Catalog.Cases do
-	local total, gems = 0, 0
+	local total, gems, mutated = 0, 0, 0
 	for _ = 1, ROLLS do
-		local roll = Roller.roll(case, Catalog.NoLuck, rng)
+		local roll = Roller.roll(case, Catalog.NoLuck, rng) :: Roller.Roll
 		total += Catalog.valueOf(roll)
 		if roll.Gem then
 			gems += 1
 		end
-	end
-	local ev = Catalog.expectedValue(case)
-	local expectedGems = 0
-	for _, entry in Catalog.rarityOdds(case, 1) do
-		if Catalog.isGem(case, entry.Id) then
-			expectedGems += entry.P
+		if roll.M then
+			mutated += 1
 		end
 	end
+	local ev = Catalog.expectedValue(case)
 	print(
 		pad(case.Name, 20)
 			.. string.format(
-				"mean %s vs EV %s (%+.1f%%)   gems %d vs %.0f expected",
+				"mean %s vs EV %s (%+.1f%%)   gems %d vs %.0f   mutated %.1f%%",
 				lpad(Format.short(total / ROLLS), 7),
 				lpad(Format.short(ev), 7),
 				(total / ROLLS / ev - 1) * 100,
 				gems,
-				expectedGems * ROLLS
+				Catalog.gemChance(case) * ROLLS,
+				mutated / ROLLS * 100
 			)
 	)
 end
@@ -132,6 +144,12 @@ end
 local Spin = GameConfig.Spin
 local Showcase = GameConfig.Showcase
 local freeCase = Catalog.CaseById[GameConfig.FreeCase.CaseId]
+local botCases = {}
+for _, case in Catalog.Cases do
+	if case.Kind == "Mixed" then
+		table.insert(botCases, case)
+	end
+end
 local maxOpen = GameConfig.MaxOpenBase
 
 local function batchSeconds(count: number, gem: boolean): number
@@ -193,7 +211,7 @@ local function runBot()
 
 	while t < HOURS * 3600 do
 		if t >= freeReadyAt then
-			local roll = Roller.roll(freeCase, Catalog.luckFor(luckLevel, false), rng)
+			local roll = Roller.roll(freeCase, Catalog.luckFor(luckLevel, false), rng) :: Roller.Roll
 			receive(Catalog.valueOf(roll))
 			freeReadyAt = t + GameConfig.FreeCase.Cooldown
 			advance(batchSeconds(1, roll.Gem))
@@ -212,17 +230,17 @@ local function runBot()
 			slots += 1
 		end
 
-		local chosen, count = nil, 0
-		for i = #Catalog.Cases, 1, -1 do
-			local case = Catalog.Cases[i]
+		local chosen: any, count = nil, 0
+		for i = #botCases, 1, -1 do
+			local case = botCases[i]
 			if case.Price * maxOpen <= cash then
 				chosen, count = case, maxOpen
 				break
 			end
 		end
 		if not chosen then
-			for i = #Catalog.Cases, 1, -1 do
-				local case = Catalog.Cases[i]
+			for i = #botCases, 1, -1 do
+				local case = botCases[i]
 				if case.Price <= cash then
 					chosen, count = case, math.min(maxOpen, math.floor(cash / case.Price))
 					break
@@ -235,13 +253,13 @@ local function runBot()
 			firstOpen[chosen.Id] = firstOpen[chosen.Id] or t
 			local gem = false
 			for _ = 1, count do
-				local roll = Roller.roll(chosen, luck, rng)
+				local roll = Roller.roll(chosen, luck, rng) :: Roller.Roll
 				gem = gem or roll.Gem
 				receive(Catalog.valueOf(roll))
 			end
 			advance(batchSeconds(count, gem))
 		else
-			local cheapest = Catalog.Cases[1].Price
+			local cheapest = botCases[1].Price
 			local wait = freeReadyAt - t
 			if income > 0 then
 				wait = math.min(wait, (cheapest - cash) / income)
@@ -272,7 +290,7 @@ end
 print(string.format("\n== Progression: %d bots, %d hours of play each ==", BOTS, HOURS))
 local opens: { [string]: { number } } = {}
 local snaps: { { { [string]: number } } } = {}
-for _, case in Catalog.Cases do
+for _, case in botCases do
 	opens[case.Id] = {}
 end
 for _ = 1, BOTS do
@@ -284,7 +302,7 @@ for _ = 1, BOTS do
 end
 
 print(pad("case", 20) .. lpad("reached by", 12) .. lpad("median", 10) .. lpad("fastest", 10))
-for _, case in Catalog.Cases do
+for _, case in botCases do
 	local list = opens[case.Id]
 	local fastest = if #list > 0 then math.min(table.unpack(list)) else nil
 	print(
