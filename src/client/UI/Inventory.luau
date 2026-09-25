@@ -87,7 +87,7 @@ local function sellAllPreview(): (number, number)
 	local total, count = 0, 0
 	for _, owned in State.Items do
 		local rarity = Catalog.rarityOf(owned)
-		if rarity and rarity.Order <= sellTier and not owned.L and not owned.S then
+		if rarity and rarity.Order <= sellTier and rarity.Fx < 6 and not owned.L and not owned.S then
 			total += Catalog.valueOf(owned)
 			count += 1
 		end
@@ -402,7 +402,10 @@ local function buildItemsTab(content: Frame)
 	tierButton = Kit.button(
 		{ LayoutOrder = 3, Size = UDim2.fromOffset(140, 36), TextSize = 16, Parent = toolbar },
 		function()
-			sellTier = sellTier % #Catalog.Rarities + 1
+			-- Grail tiers are never bulk-sold, so they aren't offered here.
+			repeat
+				sellTier = sellTier % #Catalog.Rarities + 1
+			until Catalog.Rarities[sellTier].Fx < 6
 			confirmUntil = 0
 			dirty = true
 		end

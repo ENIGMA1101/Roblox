@@ -296,7 +296,8 @@ local function sellAll(player: Player, data: Data, maxOrder: any)
 	local ids = {}
 	for id, owned in data.Items do
 		local rarity = Catalog.rarityOf(owned)
-		if rarity and rarity.Order <= maxOrder and not owned.L and not owned.S then
+		-- Grail tiers are never bulk-sold; sell them one at a time on purpose.
+		if rarity and rarity.Order <= maxOrder and rarity.Fx < 6 and not owned.L and not owned.S then
 			table.insert(ids, id)
 		end
 	end

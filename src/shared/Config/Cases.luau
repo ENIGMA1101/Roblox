@@ -22,6 +22,9 @@
 		Weights = "supply"   chance proportional to each item's Supply (Limited cases)
 		GuaranteedMutation   every item gets a mutation (odds renormalised across mutations)
 		Robux = { ProductId, Keys }   Robux key bundles, sold beside the odds
+		Grails = { { itemId, oneIn } }   ultra-rare bragging-rights drops (Imperial / Ethereal /
+		                     Omega items). Each has a fixed 1-in-oneIn chance that luck never
+		                     changes; they hide behind the gem and come out numbered.
 
 	Balance: run tools/balance.py after any change. It prints every case's odds, gem chance
 	and return.
@@ -52,6 +55,7 @@ export type CaseDef = {
 	GuaranteedMutation: boolean?,
 	Paid: { ProductId: number, Robux: number }?,
 	Robux: { ProductId: number, Keys: number }?,
+	Grails: { { any } }?,
 }
 
 local Cases: { CaseDef } = {
@@ -66,6 +70,7 @@ local Cases: { CaseDef } = {
 		Odds = { Common = 76, Uncommon = 18.5, Rare = 5.12, Epic = 0.36, Legendary = 0.02 },
 		Gem = { "Epic", "Legendary" },
 		Robux = { ProductId = 0, Keys = 5 },
+		Grails = { { "imp_perfume", 2000000 } },
 	},
 	{
 		Id = "boutique",
@@ -77,6 +82,7 @@ local Cases: { CaseDef } = {
 		Odds = { Common = 42, Uncommon = 40, Rare = 15.4, Epic = 2.238, Legendary = 0.35, Mythic = 0.012 },
 		Gem = { "Legendary", "Mythic" },
 		Robux = { ProductId = 0, Keys = 5 },
+		Grails = { { "imp_hoodie", 1500000 }, { "imp_sneakers", 5000000 } },
 	},
 	{
 		Id = "atelier",
@@ -88,6 +94,7 @@ local Cases: { CaseDef } = {
 		Odds = { Uncommon = 7.346, Rare = 40, Epic = 52, Legendary = 0.6, Mythic = 0.05, Sovereign = 0.004 },
 		Gem = { "Legendary", "Mythic", "Sovereign" },
 		Robux = { ProductId = 0, Keys = 3 },
+		Grails = { { "imp_rolax", 2000000 }, { "imp_bag", 3000000 } },
 	},
 	{
 		Id = "penthouse",
@@ -99,6 +106,7 @@ local Cases: { CaseDef } = {
 		Odds = { Rare = 15.46, Epic = 55, Legendary = 29, Mythic = 0.5, Sovereign = 0.04 },
 		Gem = { "Mythic", "Sovereign" },
 		Robux = { ProductId = 0, Keys = 3 },
+		Grails = { { "imp_watch", 1000000 }, { "imp_ring", 1500000 }, { "eth_stallion", 25000000 } },
 	},
 	{
 		Id = "monaco",
@@ -110,6 +118,12 @@ local Cases: { CaseDef } = {
 		Odds = { Epic = 15, Legendary = 72, Mythic = 12.5, Sovereign = 0.5 },
 		Gem = { "Sovereign" },
 		Robux = { ProductId = 0, Keys = 1 },
+		Grails = {
+			{ "imp_ring", 500000 },
+			{ "eth_hypercar", 10000000 },
+			{ "eth_necklace", 15000000 },
+			{ "om_nation", 500000000 },
+		},
 	},
 	{
 		Id = "vermeil",
@@ -121,6 +135,14 @@ local Cases: { CaseDef } = {
 		Odds = { Legendary = 41.8, Mythic = 55, Sovereign = 3.2 },
 		Gem = { "Sovereign" },
 		Robux = { ProductId = 0, Keys = 1 },
+		Grails = {
+			{ "eth_triptych", 4000000 },
+			{ "eth_tower", 8000000 },
+			{ "eth_yacht", 10000000 },
+			{ "om_nation", 100000000 },
+			{ "om_station", 250000000 },
+			{ "om_moon", 1000000000 },
+		},
 	},
 
 	-- Themed cases -----------------------------------------------------------------------------
@@ -132,6 +154,7 @@ local Cases: { CaseDef } = {
 		Icon = "🧴",
 		Color = Color3.fromRGB(236, 150, 200),
 		Pool = { Category = "fragrance" },
+		Grails = { { "imp_perfume", 2500000 } },
 	},
 	{
 		Id = "dropday",
@@ -141,6 +164,7 @@ local Cases: { CaseDef } = {
 		Icon = "🧥",
 		Color = Color3.fromRGB(230, 60, 60),
 		Pool = { Category = "streetwear" },
+		Grails = { { "imp_hoodie", 2000000 } },
 	},
 	{
 		Id = "sneakerhead",
@@ -150,6 +174,7 @@ local Cases: { CaseDef } = {
 		Icon = "👟",
 		Color = Color3.fromRGB(255, 140, 50),
 		Pool = { Category = "sneakers" },
+		Grails = { { "imp_sneakers", 3000000 } },
 	},
 	{
 		Id = "topshelf",
@@ -159,6 +184,7 @@ local Cases: { CaseDef } = {
 		Icon = "🥃",
 		Color = Color3.fromRGB(196, 132, 60),
 		Pool = { Category = "drinks" },
+		Grails = { { "imp_whisky", 2500000 } },
 	},
 	{
 		Id = "techhaul",
@@ -168,6 +194,7 @@ local Cases: { CaseDef } = {
 		Icon = "💻",
 		Color = Color3.fromRGB(90, 170, 255),
 		Pool = { Category = "tech", MaxValue = 100000 },
+		Grails = { { "imp_console", 1500000 } },
 	},
 	{
 		Id = "appelstore",
@@ -177,6 +204,7 @@ local Cases: { CaseDef } = {
 		Icon = "🍏",
 		Color = Color3.fromRGB(200, 205, 215),
 		Pool = { Brand = "appel" },
+		Grails = { { "imp_phone", 1500000 } },
 	},
 	{
 		Id = "ticktock",
@@ -186,6 +214,7 @@ local Cases: { CaseDef } = {
 		Icon = "⌚",
 		Color = Color3.fromRGB(120, 200, 190),
 		Pool = { Category = "watches", MaxValue = 500000 },
+		Grails = { { "imp_rolax", 2000000 } },
 	},
 	{
 		Id = "bagdrop",
@@ -195,6 +224,7 @@ local Cases: { CaseDef } = {
 		Icon = "👜",
 		Color = Color3.fromRGB(214, 160, 110),
 		Pool = { Category = "bags", MaxValue = 1000000 },
+		Grails = { { "imp_bag", 2000000 } },
 	},
 	{
 		Id = "grailhunter",
@@ -204,6 +234,7 @@ local Cases: { CaseDef } = {
 		Icon = "🃏",
 		Color = Color3.fromRGB(255, 210, 70),
 		Pool = { Category = "collectibles" },
+		Grails = { { "imp_card", 1000000 } },
 	},
 	{
 		Id = "rolaxonly",
@@ -213,15 +244,17 @@ local Cases: { CaseDef } = {
 		Icon = "👑",
 		Color = Color3.fromRGB(40, 150, 90),
 		Pool = { Brand = "rolax" },
+		Grails = { { "imp_rolax", 1000000 } },
 	},
 	{
 		Id = "icebox",
-		Name = "Ice Box",
+		Name = "Ice Vault",
 		Theme = "Jewellery",
 		Price = 50000,
 		Icon = "💍",
 		Color = Color3.fromRGB(150, 225, 255),
 		Pool = { Category = "jewellery" },
+		Grails = { { "imp_ring", 1000000 } },
 	},
 	{
 		Id = "twowheels",
@@ -231,6 +264,7 @@ local Cases: { CaseDef } = {
 		Icon = "🏍️",
 		Color = Color3.fromRGB(255, 110, 40),
 		Pool = { Category = "bikes" },
+		Grails = { { "imp_bike", 800000 } },
 	},
 	{
 		Id = "hermezvault",
@@ -240,6 +274,7 @@ local Cases: { CaseDef } = {
 		Icon = "🟠",
 		Color = Color3.fromRGB(245, 130, 30),
 		Pool = { Brand = "hermez" },
+		Grails = { { "imp_bag", 500000 } },
 	},
 	{
 		Id = "horology",
@@ -249,6 +284,7 @@ local Cases: { CaseDef } = {
 		Icon = "⏱️",
 		Color = Color3.fromRGB(70, 110, 200),
 		Pool = { Category = "watches", MinValue = 20000 },
+		Grails = { { "imp_watch", 400000 }, { "imp_rolax", 400000 } },
 	},
 	{
 		Id = "dreamgarage",
@@ -258,15 +294,17 @@ local Cases: { CaseDef } = {
 		Icon = "🏎️",
 		Color = Color3.fromRGB(220, 40, 60),
 		Pool = { Category = "cars" },
+		Grails = { { "eth_stallion", 10000000 }, { "eth_hypercar", 15000000 } },
 	},
 	{
 		Id = "prancinghorse",
-		Name = "Prancing Horse",
+		Name = "Red Stallion",
 		Theme = "Brand: Ferrarri",
 		Price = 4000000,
 		Icon = "🐎",
 		Color = Color3.fromRGB(255, 40, 30),
 		Pool = { Brand = "ferrarri" },
+		Grails = { { "eth_stallion", 3000000 } },
 	},
 	{
 		Id = "hypercarhunt",
@@ -276,6 +314,7 @@ local Cases: { CaseDef } = {
 		Icon = "🏁",
 		Color = Color3.fromRGB(40, 40, 50),
 		Pool = { Category = "hypercars" },
+		Grails = { { "eth_hypercar", 3000000 } },
 	},
 	{
 		Id = "openwater",
@@ -285,6 +324,7 @@ local Cases: { CaseDef } = {
 		Icon = "🛥️",
 		Color = Color3.fromRGB(30, 140, 220),
 		Pool = { Category = "boats", MinValue = 1000000 },
+		Grails = { { "eth_yacht", 5000000 } },
 	},
 	{
 		Id = "thegallery",
@@ -294,6 +334,7 @@ local Cases: { CaseDef } = {
 		Icon = "🖼️",
 		Color = Color3.fromRGB(180, 140, 255),
 		Pool = { Category = "art", MinValue = 1000000 },
+		Grails = { { "eth_triptych", 2000000 } },
 	},
 	{
 		Id = "realestate",
@@ -303,6 +344,7 @@ local Cases: { CaseDef } = {
 		Icon = "🏙️",
 		Color = Color3.fromRGB(120, 130, 150),
 		Pool = { Category = "property" },
+		Grails = { { "eth_tower", 2000000 }, { "om_nation", 100000000 }, { "om_moon", 1000000000 } },
 	},
 	{
 		Id = "jetset",
@@ -312,6 +354,7 @@ local Cases: { CaseDef } = {
 		Icon = "✈️",
 		Color = Color3.fromRGB(200, 220, 240),
 		Pool = { Category = "aviation", MinValue = 5000000 },
+		Grails = { { "eth_palace", 1000000 }, { "om_station", 300000000 } },
 	},
 
 	-- Robux cases: buying one opens it instantly. Every item is numbered. -----------------------
@@ -325,6 +368,7 @@ local Cases: { CaseDef } = {
 		TargetValue = 100000,
 		GuaranteedMutation = true,
 		Paid = { ProductId = 0, Robux = 99 },
+		Grails = { { "imp_hoodie", 250000 } },
 	},
 	{
 		Id = "blackcard",
@@ -338,6 +382,7 @@ local Cases: { CaseDef } = {
 		TargetValue = 450000,
 		GuaranteedMutation = true,
 		Paid = { ProductId = 0, Robux = 333 },
+		Grails = { { "imp_watch", 250000 } },
 	},
 	{
 		Id = "jackpot",
@@ -349,6 +394,7 @@ local Cases: { CaseDef } = {
 		TargetValue = 1800000,
 		GuaranteedMutation = true,
 		Paid = { ProductId = 0, Robux = 777 },
+		Grails = { { "imp_ring", 200000 }, { "eth_necklace", 2000000 } },
 	},
 	{
 		Id = "popicons",

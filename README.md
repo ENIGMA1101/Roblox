@@ -1,7 +1,8 @@
 # Vermeil Exchange
 
 A Roblox luxury case-opening game. Players walk up to the Vermeil Exchange stall, open cases
-on a vertical reel, and pull luxury items across 7 rarities, each with a parody brand that
+on a spinning reel (sideways for a single open, one vertical reel per case for multi-opens),
+and pull luxury items across 11 rarities, each with a parody brand that
 nudges its price. On top of that there's a rare mutation that multiplies the value by ×1.1 up to ×15.
 When a case's top rarities hit, the reel lands on a **yellow gem** first. The gem pops,
 flickers and bursts, then the reel re-spins through the rare pool to reveal the prize.
@@ -85,7 +86,20 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
   watches, bags, jewellery, drinks, collectibles, cars, hypercars, bikes, boats, aviation, art,
   property) plus 29 Robux exclusives. Rarity comes from value: Common → Uncommon → Rare → Epic →
   Legendary → Mythic → Sovereign, plus **Limited** for the numbered Robux items. There are about 170
-  parody brands; most items are one specific product from one house.
+  parody brands; most items are one specific product from one house. Every product name is a
+  spoof (e.g. "Speedmasterr Moonwotch", not the real model name), and brand names are altered too.
+- **Grails (Imperial → Ethereal → Omega):** 22 ultra-rare bragging-rights items worth $6M up to
+  $100B, numbered with a global serial. Cheap cases hold one or two Imperial grails at around
+  1 in 2 million. The end-game cases hold several, including Ethereal and Omega at 1 in 4 million
+  up to 1 in a billion. They're listed per case in `Grails` in `Config/Cases.luau`. Grail odds are
+  fixed and luck never changes them, so they stay rare. They hide behind the gem, get a
+  full-screen fanfare when they land, are announced to the whole server, and are never included
+  in *Sell all*. Together they add under 1% to any case's return.
+- **Rarity on the reel:** each rarity has an `Fx` level (0-8) in `Config/Rarities.luau`, and
+  cells get louder as it rises. Commons show a faint card. Rare and Epic cards are tinted and outlined. From
+  Legendary up, cards get a gradient and the rarity name, then a shine sweep and twinkling stars.
+  Grails get animated multi-colour cards with a spinning outline. Rare cells also click louder as
+  they pass the centre line, so a rare item is hard to miss.
 - **Mutations:** rolled independently on every pull. Values below are the defaults and can all be changed in `Config/Mutations.luau`:
 
   | Mutation | Value | Chance |
@@ -154,7 +168,8 @@ Create these developer products and paste the ids into `Config/Monetization.luau
 
 In Studio a 🛠️ **Dev** button appears on the HUD. It opens a panel where you can:
 
-- **Arm the next open:** *Force gem (random tier)*, *Force gem (top tier)*, or any mutation. They
+- **Arm the next open:** *Force gem (random tier)*, *Force gem (top item)*, *Force grail*
+  (a random grail from that case, e.g. open The Vermeil Vault for Ethereal/Omega), or any mutation. They
   combine, so gem + Crown Jewel works. The next open (including the free case) uses them on every
   column, then they clear.
 - **Open any case directly** from the panel, ×1 to ×5, without walking to the stall.
@@ -251,7 +266,7 @@ even at max luck with the pass. The Luck window and case previews show the cappe
    - case battles like the video, as a later multiplayer mode
    - trading, only once the economy is stable (session locking is already in place to prevent dupes)
 7. **Test on a phone.** Use Studio's device emulator. The UI scales from a 1280×760 design size;
-   check the spinner with 5 columns on the smallest screen you support.
+   check the spinner with 5 columns and the sideways single reel on the smallest screen you support.
 
 ## Not yet verified
 

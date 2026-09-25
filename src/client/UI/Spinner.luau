@@ -1,7 +1,11 @@
 --[[
 	The fullscreen case opening.
 
-	One vertical reel per case. Items scroll down and ease to a stop on the centre line.
+	One reel per case: a single open scrolls sideways across the screen, several opens get a
+	vertical reel each. Items ease to a stop on the centre line. Cells are styled by rarity
+	(Rarities.Fx): the rarer the item, the louder its card, so rare items stand out as they
+	fly past. The grail tiers (Imperial / Ethereal / Omega) get animated gradient cards and
+	a full-screen fanfare when they land.
 	If the server's result is a gem rarity, the reel first lands on the yellow gem:
 	the gem pops, a gold pixel mosaic flickers behind it, rays spin, the column glows
 	and the riser plays; then the gem bursts and the reel re-spins through only the
@@ -67,6 +71,9 @@ type Entry = { Gem: boolean, I: string?, B: string? }
 
 type Square = { Frame: Frame, D: number }
 
+-- An animated decoration on a reel cell, driven by the column's render loop.
+type Anim = { Kind: string, Obj: Instance, Phase: number }
+
 type Column = {
 	Frame: Frame,
 	EdgeFade: Frame,
@@ -87,8 +94,10 @@ type Column = {
 	BadgeScale: UIScale,
 	SoldLabel: TextLabel,
 	Cells: { [number]: Frame },
-	CellHeight: number,
-	Height: number,
+	Anims: { Anim },
+	Horizontal: boolean, -- single open: the reel runs left to right
+	CellSize: number,
+	Length: number, -- reel length along the scroll axis
 	Connections: { RBXScriptConnection },
 	RaysSpinning: boolean,
 	MosaicRun: number,
@@ -151,13 +160,34 @@ local function shake(duration: number, magnitude: number)
 	end)
 end
 
-local function playTick(progress: number)
+-- fx = the rarity Fx of the cell crossing the centre line; rare cells get a brighter click.
+local function playTick(progress: number, fx: number)
 	local now = os.clock()
+	if fx >= 4 then
+		lastTick = now
+		Sound.play("Tick", { Pitch = 1.25 + fx * 0.06, Volume = 1.4 })
+		return
+	end
 	if now - lastTick < 0.03 then
 		return
 	end
 	lastTick = now
 	Sound.play("Tick", { Pitch = 0.95 + progress * 0.15 + rng:NextNumber(0, 0.05) })
+end
+
+-- Colours to cycle through for a rarity's effects.
+local function rarityColors(rarity: Catalog.Rarity): { Color3 }
+	return rarity.Gradient or { rarity.Color, rarity.Color:Lerp(Color3.new(1, 1, 1), 0.45), rarity.Color }
+end
+
+local function cycleColor(colors: { Color3 }): () -> Color3
+	local t = rng:NextNumber()
+	return function()
+		t = (t + 0.035) % 1
+		local scaled = t * (#colors - 1)
+		local index = math.floor(scaled)
+		return colors[index + 1]:Lerp(colors[math.min(index + 2, #colors)], scaled - index)
+	end
 end
 
 local function speedFactor(): number
@@ -238,14 +268,11 @@ local function buildRays(parent: Frame, size: number): Frame
 	return rays
 end
 
-local function buildColumn(
-	index: number,
-	count: number,
-	width: number,
-	height: number,
-	cellHeight: number,
-	gap: number
-): Column
+type Layout = { Width: number, Height: number, Cell: number, Gap: number, Horizontal: boolean }
+
+local function buildColumn(index: number, count: number, size: Layout): Column
+	local width, height, cellHeight, gap = size.Width, size.Height, size.Cell, size.Gap
+	local horizontal = size.Horizontal
 	local totalWidth = count * width + (count - 1) * gap
 	local frame = Kit.new("Frame", {
 		Name = `Column{index}`,
@@ -261,7 +288,8 @@ local function buildColumn(
 
 	local strip = Kit.new("Frame", {
 		Name = "Strip",
-		Size = UDim2.new(1, 0, 0, cellHeight),
+		AnchorPoint = if horizontal then Vector2.new(0, 0.5) else Vector2.zero,
+		Size = if horizontal then UDim2.fromOffset(cellHeight, cellHeight) else UDim2.new(1, 0, 0, cellHeight),
 		BackgroundTransparency = 1,
 		ZIndex = 2,
 		Parent = frame,
@@ -270,9 +298,9 @@ local function buildColumn(
 	-- Centre line and edge fade, above the strip.
 	Kit.new("Frame", {
 		Name = "CenterLine",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.new(1, 0, 0, 2),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = if horizontal then UDim2.new(0, 2, 1, 0) else UDim2.new(1, 0, 0, 2),
 		BackgroundColor3 = GOLD,
 		BackgroundTransparency = 0.75,
 		BorderSizePixel = 0,
@@ -287,7 +315,7 @@ local function buildColumn(
 		Parent = frame,
 	}, {
 		Kit.new("UIGradient", {
-			Rotation = 90,
+			Rotation = if horizontal then 0 else 90,
 			Transparency = NumberSequence.new({
 				NumberSequenceKeypoint.new(0, 0),
 				NumberSequenceKeypoint.new(0.2, 1),
@@ -321,7 +349,7 @@ local function buildColumn(
 		Parent = frame,
 	})
 
-	local rays = buildRays(stage, math.min(width, height) * 1.05)
+	local rays = buildRays(stage, if horizontal then height * 1.2 else math.min(width, height) * 1.05)
 	local mosaic, squares = buildMosaic(stage, math.min(width - 12, cellHeight * 1.35))
 
 	local hero = Kit.new("Frame", {
@@ -416,72 +444,208 @@ local function buildColumn(
 		BadgeScale = badgeScale,
 		SoldLabel = sold,
 		Cells = {},
-		CellHeight = cellHeight,
-		Height = height,
+		Anims = {},
+		Horizontal = horizontal,
+		CellSize = cellHeight,
+		Length = if horizontal then width else height,
 		Connections = {},
 		RaysSpinning = false,
 		MosaicRun = 0,
 	}
 end
 
+-- Drives every animated cell decoration in a column (shine sweeps, spinning gradients,
+-- twinkling stars).
+local function animateCells(column: Column)
+	return RunService.RenderStepped:Connect(function()
+		local t = os.clock()
+		for _, anim in column.Anims do
+			if anim.Kind == "spin" then
+				(anim.Obj :: UIGradient).Rotation = (t * 160 + anim.Phase) % 360
+			elseif anim.Kind == "sweep" then
+				local x = ((t * 0.8 + anim.Phase) % 1.5) * 2 - 1;
+				(anim.Obj :: UIGradient).Offset = Vector2.new(x, 0)
+			elseif anim.Kind == "twinkle" then
+				(anim.Obj :: TextLabel).TextTransparency = 0.5 - 0.5 * math.sin(t * 7 + anim.Phase)
+			elseif anim.Kind == "pulse" then
+				(anim.Obj :: UIScale).Scale = 1 + 0.05 * math.sin(t * 6 + anim.Phase)
+			end
+		end
+	end)
+end
+
 -- Reel -----------------------------------------------------------------------------------------
 
+local CARD_TRANSPARENCY = { 0.94, 0.86, 0.78, 0.7, 0.6, 0.45, 0.25, 0.2, 0.15 }
+local STROKE_THICKNESS = { 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5 }
+
+local function anim(column: Column, kind: string, obj: Instance)
+	table.insert(column.Anims, { Kind = kind, Obj = obj, Phase = rng:NextNumber(0, 10) })
+end
+
+--[[
+	The card behind an item on the reel. Louder the rarer it is:
+	Fx 0 faint card  1 tinted  2 outlined  3 gradient + rarity name  4 shine sweep
+	5 bright gradient + twinkling stars  6+ animated multi-colour gradient, spinning outline,
+	pulsing, "★ NAME ★" banner.
+]]
+local function styleCell(column: Column, cell: Frame, rarity: Catalog.Rarity)
+	local fx = rarity.Fx
+	local card = Kit.new("Frame", {
+		Name = "Card",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.9, 0.9),
+		BackgroundColor3 = if fx >= 3 then Color3.new(1, 1, 1) else rarity.Color,
+		BackgroundTransparency = CARD_TRANSPARENCY[fx + 1],
+		ZIndex = 2,
+		Parent = cell,
+	}, { Kit.corner(12) })
+	if fx >= 6 then
+		local scale = Kit.new("UIScale", { Parent = card })
+		anim(column, "pulse", scale)
+	end
+
+	if fx >= 3 then
+		local colors = if fx >= 5
+			then rarityColors(rarity)
+			else { rarity.Color:Lerp(Color3.new(1, 1, 1), 0.15), rarity.Color:Lerp(Color3.new(0, 0, 0), 0.55) }
+		local gradient = Kit.gradient(colors, if fx >= 6 then 45 else 90)
+		gradient.Parent = card
+		if fx >= 6 then
+			anim(column, "spin", gradient)
+		end
+	end
+
+	if fx >= 1 then
+		local stroke = Kit.stroke(
+			if fx >= 6 then Color3.new(1, 1, 1) else rarity.Color,
+			STROKE_THICKNESS[fx],
+			if fx == 1 then 0.5 else 0
+		)
+		stroke.Parent = card
+		if fx >= 6 then
+			local gradient = Kit.gradient(rarityColors(rarity), 0)
+			gradient.Parent = stroke
+			anim(column, "spin", gradient)
+		end
+	end
+
+	if fx >= 4 then
+		local shine = Kit.new("Frame", {
+			Name = "Shine",
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			ZIndex = 4,
+			Parent = card,
+		}, { Kit.corner(12) })
+		local gradient = Kit.new("UIGradient", {
+			Rotation = 25,
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.4, 1),
+				NumberSequenceKeypoint.new(0.5, if fx >= 6 then 0.2 else 0.45),
+				NumberSequenceKeypoint.new(0.6, 1),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Parent = shine,
+		})
+		anim(column, "sweep", gradient)
+	end
+
+	if fx >= 3 then
+		local label = Kit.label({
+			Name = "RarityName",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0, 3),
+			Size = UDim2.new(0.92, 0, 0.15, 0),
+			Text = if fx >= 6 then `★ {string.upper(rarity.Name)} ★` else string.upper(rarity.Name),
+			TextScaled = true,
+			FontFace = Fonts.Heavy,
+			TextColor3 = if fx >= 5 then Color3.new(1, 1, 1) else rarity.Color:Lerp(Color3.new(1, 1, 1), 0.35),
+			TextXAlignment = Enum.TextXAlignment.Center,
+			ZIndex = 5,
+			Parent = card,
+		})
+		Kit.new("UIStroke", { Color = Color3.new(0, 0, 0), Thickness = 1.5, Transparency = 0.2, Parent = label })
+	end
+
+	if fx >= 5 then
+		for _, spot in
+			{ Vector2.new(0.14, 0.24), Vector2.new(0.86, 0.3), Vector2.new(0.2, 0.84), Vector2.new(0.84, 0.8) }
+		do
+			local star = Kit.label({
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(spot.X, spot.Y),
+				Size = UDim2.fromScale(0.16, 0.16),
+				Text = "✦",
+				TextScaled = true,
+				TextColor3 = Color3.new(1, 1, 1),
+				TextXAlignment = Enum.TextXAlignment.Center,
+				ZIndex = 5,
+				Parent = card,
+			})
+			anim(column, "twinkle", star)
+		end
+	end
+
+	Kit.new("Frame", {
+		Name = "Bar",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -5),
+		Size = UDim2.new(if fx >= 3 then 0.8 else 0.5, 0, 0, if fx >= 3 then 6 else 4),
+		BackgroundColor3 = if fx >= 6 then Color3.new(1, 1, 1) else rarity.Color,
+		BackgroundTransparency = 0.05,
+		ZIndex = 5,
+		Parent = card,
+	}, { Kit.round() })
+end
+
 local function makeCell(column: Column, index: number, entry: Entry): Frame
+	local size = column.CellSize
 	local cell = Kit.new("Frame", {
 		Name = tostring(index),
-		Position = UDim2.fromOffset(0, -index * column.CellHeight),
-		Size = UDim2.new(1, 0, 0, column.CellHeight),
+		Position = if column.Horizontal then UDim2.fromOffset(index * size, 0) else UDim2.fromOffset(0, -index * size),
+		Size = if column.Horizontal then UDim2.fromOffset(size, size) else UDim2.new(1, 0, 0, size),
 		BackgroundTransparency = 1,
 		ZIndex = 2,
 		Parent = column.Strip,
 	})
+	local fx = 0
 	if entry.Gem then
-		ItemVisual.gem({ Size = UDim2.fromScale(0.74, 0.74), ZIndex = 2 }).Parent = cell
+		ItemVisual.gem({ Size = UDim2.fromScale(0.74, 0.74), ZIndex = 3 }).Parent = cell
 	else
 		local item = Catalog.ItemById[entry.I :: string]
 		local rarity = Catalog.RarityById[item.Rarity]
-		Kit.new("Frame", {
-			Name = "Aura",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(0.62, 0.62),
-			BackgroundColor3 = rarity.Color,
-			BackgroundTransparency = 0.86,
-			ZIndex = 2,
-			Parent = cell,
-		}, { Kit.round(), Kit.new("UIAspectRatioConstraint", { AspectRatio = 1 }) })
-		Kit.new("Frame", {
-			Name = "Bar",
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.new(0.5, 0, 1, -8),
-			Size = UDim2.new(0.5, 0, 0, 4),
-			BackgroundColor3 = rarity.Color,
-			BackgroundTransparency = 0.1,
-			ZIndex = 2,
-			Parent = cell,
-		}, { Kit.round() })
-		ItemVisual.icon(entry.I :: string, { Size = UDim2.fromScale(0.6, 0.6), ZIndex = 2 }).Parent = cell
+		fx = rarity.Fx
+		styleCell(column, cell, rarity)
+		ItemVisual.icon(entry.I :: string, { Size = UDim2.fromScale(0.58, 0.58), ZIndex = 3 }).Parent = cell
 	end
+	cell:SetAttribute("Fx", fx)
 	column.Cells[index] = cell
 	return cell
 end
 
 local function setScroll(column: Column, scroll: number)
-	column.Strip.Position = UDim2.fromOffset(0, column.Height / 2 - column.CellHeight / 2 + scroll)
+	local offset = column.Length / 2 - column.CellSize / 2
+	column.Strip.Position = if column.Horizontal
+		then UDim2.new(0, offset - scroll, 0.5, 0)
+		else UDim2.fromOffset(0, offset + scroll)
 end
 
 local function fillStrip(column: Column, case: Catalog.Case, target: Entry, targetIndex: number, gemPhase: boolean)
 	column.Strip:ClearAllChildren()
 	table.clear(column.Cells)
+	table.clear(column.Anims)
 	for index = 0, targetIndex + CELLS_AFTER do
 		local entry: Entry = if index == targetIndex then target else Roller.filler(case, rng, gemPhase) :: any
 		makeCell(column, index, entry)
 	end
-	setScroll(column, START_INDEX * column.CellHeight)
+	setScroll(column, START_INDEX * column.CellSize)
 end
 
 local function spinTo(column: Column, targetIndex: number, duration: number)
-	local cellHeight = column.CellHeight
+	local cellHeight = column.CellSize
 	local startScroll = START_INDEX * cellHeight
 	local endScroll = targetIndex * cellHeight + rng:NextNumber(-0.36, 0.36) * cellHeight
 	local lastIndex = START_INDEX
@@ -491,7 +655,8 @@ local function spinTo(column: Column, targetIndex: number, duration: number)
 		local index = math.floor(scroll / cellHeight + 0.5)
 		if index ~= lastIndex then
 			lastIndex = index
-			playTick(alpha)
+			local cell = column.Cells[index]
+			playTick(alpha, if cell then cell:GetAttribute("Fx") or 0 else 0)
 		end
 	end)
 	-- Settle onto the centre line, like the reel clicking into place.
@@ -640,25 +805,75 @@ local function gemSequence(column: Column, speed: number)
 	Kit.tween(column.Stroke, 0.3, { Thickness = 2.5 })
 end
 
+-- The grail tiers: spinning multi-colour outline, colour-cycling flashes and a banner.
+local function grailFanfare(column: Column, rarity: Catalog.Rarity)
+	local colors = rarityColors(rarity)
+	Sound.play("GemBurst")
+	Sound.play("MutationBig", { Pitch = 0.8 + (rarity.Fx - 6) * 0.1 })
+	shake(1.2, 12 + (rarity.Fx - 6) * 4)
+
+	local gradient = Kit.gradient(colors, 0)
+	gradient.Parent = column.Stroke
+	column.Stroke.Color = Color3.new(1, 1, 1)
+	anim(column, "spin", gradient)
+
+	local frameSize = column.Frame.Size
+	local banner = Kit.label({
+		Name = "GrailBanner",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0.5, -frameSize.Y.Offset / 2 - 6),
+		Size = UDim2.fromOffset(math.max(frameSize.X.Offset, 420), 54),
+		Text = `★ {string.upper(rarity.Name)} PULL ★`,
+		TextScaled = true,
+		FontFace = Fonts.Heavy,
+		TextColor3 = Color3.new(1, 1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		ZIndex = 15,
+		Parent = board,
+	})
+	local textGradient = Kit.gradient(colors, 0)
+	textGradient.Parent = banner
+	anim(column, "spin", textGradient)
+	Kit.new("UIStroke", { Color = Color3.new(0, 0, 0), Thickness = 2.5, Parent = banner })
+	local scale = Kit.new("UIScale", { Scale = 3, Parent = banner })
+	Kit.tween(scale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back)
+
+	for round = 1, 2 do
+		for _, color in colors do
+			flashScreen(color, if round == 1 then 0.45 else 0.25)
+			task.wait(0.14)
+		end
+	end
+end
+
 local function reveal(column: Column, result: Result, speed: number)
 	local item = Catalog.ItemById[result.I]
 	local rarity = Catalog.RarityById[item.Rarity]
-	local order = rarity.Order
-	local big = order >= 5
+	local fx = rarity.Fx
+	local big = fx >= 3
+	local grail = fx >= 6
 
-	Sound.play(if big then "RevealBig" else "Reveal", { Pitch = 0.85 + order * 0.06 })
-	glow(column, rarity.Color, if big then 4.5 else 3)
-	Kit.tween(column.Shade, 0.3, { BackgroundTransparency = 0.35 })
-	column.HeroScale.Scale = 0.8
-	Kit.tween(column.HeroScale, 0.4, { Scale = 1.15 }, Enum.EasingStyle.Back)
-	if order >= 4 then
-		raysOn(column, rarity.Color, if order >= 6 then 0.75 else 0.45)
+	Sound.play(if big then "RevealBig" else "Reveal", { Pitch = 0.9 + fx * 0.07 })
+	glow(column, rarity.Color, if grail then 6 elseif big then 4.5 else 3)
+	Kit.tween(column.Shade, 0.3, { BackgroundTransparency = if grail then 0.2 else 0.35 })
+	column.HeroScale.Scale = if grail then 0.4 else 0.8
+	Kit.tween(
+		column.HeroScale,
+		if grail then 0.7 else 0.4,
+		{ Scale = if grail then 1.3 else 1.15 },
+		Enum.EasingStyle.Back
+	)
+	if fx >= 2 then
+		raysOn(column, rarity.Color, if fx >= 4 then 0.75 else 0.45)
 	end
-	if big then
-		flashScreen(rarity.Color, if order >= 6 then 0.4 else 0.25)
-		shake(0.35, if order >= 6 then 10 else 5)
+	if grail then
+		task.spawn(grailFanfare, column, rarity)
+	elseif big then
+		flashScreen(rarity.Color, if fx >= 4 then 0.4 else 0.25)
+		shake(0.35, if fx >= 4 then 10 else 5)
 	end
-	task.spawn(mosaicBurst, column, rarity.Color, 1.1 * speed + 0.3, true)
+	local mosaicColor = if fx >= 5 then cycleColor(rarityColors(rarity)) else rarity.Color
+	task.spawn(mosaicBurst, column, mosaicColor, (if grail then 2.5 else 1.1) * speed + 0.3, true)
 
 	column.NameLabel.Text = item.Name
 	column.NameLabel.TextColor3 = rarity.Color
@@ -813,13 +1028,20 @@ local function clearBoard(columns: { Column })
 	end
 end
 
-local function layout(count: number): (number, number, number, number)
+local function layout(count: number): Layout
 	local size = Root.size()
+	if count == 1 then
+		-- One wide reel running left to right, tall enough for the reveal text under it.
+		local cell = math.clamp((size.Y - 280) / 2.2, 110, 170)
+		local height = math.max(cell * 1.24 + 40, cell * 1.04 + 160)
+		local width = math.clamp(size.X - 140, 360, 1000)
+		return { Width = width, Height = height, Cell = cell, Gap = 0, Horizontal = true }
+	end
 	local gap = 16
 	local width = math.clamp((size.X - 140 - gap * (count - 1)) / count, 120, 230)
 	local height = math.clamp(size.Y - 280, 300, 520)
 	local cellHeight = math.min(width * 0.82, height / 2.7)
-	return width, height, cellHeight, gap
+	return { Width = width, Height = height, Cell = cellHeight, Gap = gap, Horizontal = false }
 end
 
 local function setFooterVisible(visible: boolean)
@@ -957,15 +1179,34 @@ type Request = () -> Actions.Result
 
 local function play(case: Catalog.Case, results: { Result }): { Column }
 	local count = #results
-	local width, height, cellHeight, gap = layout(count)
+	local size = layout(count)
 	local columns = {}
 	for index = 1, count do
-		table.insert(columns, buildColumn(index, count, width, height, cellHeight, gap))
+		local column = buildColumn(index, count, size)
+		track(column, animateCells(column))
+		table.insert(columns, column)
 	end
 
-	local totalWidth = count * width + (count - 1) * gap
-	leftArrow.Position = UDim2.new(0.5, -totalWidth / 2 - 8, 0.5, BOARD_Y)
-	rightArrow.Position = UDim2.new(0.5, totalWidth / 2 + 8, 0.5, BOARD_Y)
+	-- Pointers at the centre line: either side of the vertical reels, above and below the
+	-- sideways one (outside it, clear of the reveal text).
+	if size.Horizontal then
+		leftArrow.Text = "▼"
+		leftArrow.AnchorPoint = Vector2.new(0.5, 1)
+		leftArrow.Position = UDim2.new(0.5, 0, 0.5, BOARD_Y - size.Height / 2 - 2)
+		rightArrow.Text = "▲"
+		rightArrow.AnchorPoint = Vector2.new(0.5, 0)
+		rightArrow.Position = UDim2.new(0.5, 0, 0.5, BOARD_Y + size.Height / 2 + 2)
+	else
+		local totalWidth = count * size.Width + (count - 1) * size.Gap
+		leftArrow.Text = "▶"
+		leftArrow.AnchorPoint = Vector2.new(1, 0.5)
+		leftArrow.Position = UDim2.new(0.5, -totalWidth / 2 - 8, 0.5, BOARD_Y)
+		rightArrow.Text = "◀"
+		rightArrow.AnchorPoint = Vector2.new(0, 0.5)
+		rightArrow.Position = UDim2.new(0.5, totalWidth / 2 + 8, 0.5, BOARD_Y)
+	end
+	leftArrow.TextXAlignment = Enum.TextXAlignment.Center
+	rightArrow.TextXAlignment = Enum.TextXAlignment.Center
 
 	local speed = speedFactor()
 	local remaining = count
@@ -1113,7 +1354,8 @@ function Spinner.run(case: Catalog.Case, count: number, mode: string?)
 			total += result.Value
 			table.insert(ids, result.Id)
 			local mutation = result.M and Catalog.MutationById[result.M]
-			if result.Gem or (mutation and mutation.Tier >= 3) then
+			local rarity = Catalog.RarityById[Catalog.ItemById[result.I].Rarity]
+			if result.Gem or rarity.Fx >= 5 or (mutation and mutation.Tier >= 3) then
 				bigHit = true
 			end
 		end

@@ -32,7 +32,11 @@ local openCount = 1
 local function armedText(): string
 	local parts = {}
 	if State.Force.Gem then
-		table.insert(parts, if State.Force.Gem == "top" then "💎 Gem (top tier)" else "💎 Gem (random tier)")
+		local label = if State.Force.Gem == "top"
+			then "💎 Gem (top item)"
+			elseif State.Force.Gem == "grail" then "🏆 Grail"
+			else "💎 Gem (random tier)"
+		table.insert(parts, label)
 	end
 	if State.Force.Mutation then
 		local mutation = Catalog.MutationById[State.Force.Mutation]
@@ -119,10 +123,13 @@ function DevTools.start()
 	button(gemRow, 1, "💎 Force gem (random tier)", Colors.GoldDeep, function()
 		Actions.debug("ForceGem", "random")
 	end)
-	button(gemRow, 2, "💎 Force gem (top tier)", Colors.GoldDeep, function()
+	button(gemRow, 2, "💎 Force gem (top item)", Colors.GoldDeep, function()
 		Actions.debug("ForceGem", "top")
 	end)
-	button(gemRow, 3, "Clear all", nil, function()
+	button(gemRow, 3, "🏆 Force grail (if the case has one)", Colors.GoldDeep, function()
+		Actions.debug("ForceGem", "grail")
+	end)
+	button(gemRow, 4, "Clear all", nil, function()
 		Actions.debug("ClearForce")
 	end)
 

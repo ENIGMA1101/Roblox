@@ -295,10 +295,18 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 			BackgroundTransparency = 0.82,
 			Parent = r,
 		}, { Kit.corner(8), ItemVisual.icon(item.Id, { Size = UDim2.fromScale(0.8, 0.8) }) })
+		-- Rare rows stand out: outlined in the rarity colour, grails in their animated colours.
+		if rarity.Fx >= 3 then
+			local stroke = Kit.stroke(if rarity.Gradient then Color3.new(1, 1, 1) else rarity.Color, 1.5)
+			stroke.Parent = r
+			if rarity.Gradient then
+				Kit.gradient(rarity.Gradient, 0).Parent = stroke
+			end
+		end
 		Kit.label({
 			Position = UDim2.fromOffset(62, 6),
 			Size = UDim2.new(1, -200, 0, 22),
-			Text = (if entry.Gem then "💎 " else "") .. item.Name,
+			Text = (if entry.Grail then "🏆 " elseif entry.Gem then "💎 " else "") .. item.Name,
 			FontFace = Fonts.Bold,
 			TextColor3 = rarity.Color,
 			Parent = r,
@@ -319,6 +327,9 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 			detail ..= `  •  {Format.commas(remaining)} / {Format.commas(item.Supply :: number)} left`
 		elseif item.Exclusive then
 			detail ..= `  •  numbered, {Format.commas(State.Serials[item.Id] or 0)} pulled`
+		end
+		if entry.Grail then
+			detail ..= "  •  grail: fixed odds, luck doesn't change them"
 		end
 		Kit.label({
 			Position = UDim2.fromOffset(62, 29),

@@ -63,7 +63,7 @@ local function handle(player: Player, data: Data, action: any, arg: any)
 	end
 
 	if action == "ForceGem" then
-		if arg ~= nil and arg ~= "random" and arg ~= "top" then
+		if arg ~= nil and arg ~= "random" and arg ~= "top" and arg ~= "grail" then
 			return { ok = false, error = "Bad request." }
 		end
 		arm(player).Gem = arg

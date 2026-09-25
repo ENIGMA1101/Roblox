@@ -136,7 +136,7 @@ local Brands: { [string]: Brand } = {
 local SINGLE_PRODUCT_HOUSES: { [string]: string } = {
 	-- Streetwear & sneakers
 	nikey = "Nikey",
-	yeezus = "Yeezus",
+	yeezus = "Yeazy",
 	newbalanse = "New Balanse",
 	monke = "A Bathing Monke",
 	stussie = "Stussie",
@@ -170,9 +170,9 @@ local SINGLE_PRODUCT_HOUSES: { [string]: string } = {
 	celeen = "Celeen",
 	goyardd = "Goyardd",
 	bottega = "Bottega Venetta",
-	iceboxco = "Ice Box Co.",
+	iceboxco = "Ice Vault Jewelers",
 	graaf = "Graaf",
-	faberje = "Fabergé House",
+	faberje = "House of Fabbrezhay",
 	-- Drinks
 	patrone = "Patrone",
 	hennesy = "Hennesy",
@@ -203,7 +203,7 @@ local SINGLE_PRODUCT_HOUSES: { [string]: string } = {
 	ecossee = "Ecossee",
 	nimen = "Nimen Customs",
 	vyruss = "Vyruss",
-	specialised = "Specialised",
+	specialised = "Speshulized",
 	-- Water & air
 	seadu = "Sea-Du",
 	wallee = "Wallee",
@@ -211,9 +211,9 @@ local SINGLE_PRODUCT_HOUSES: { [string]: string } = {
 	benningtun = "Benningtun",
 	cirruss = "Cirruss",
 	robinsun = "Robinsun",
-	hondajett = "HondaJett",
+	hondajett = "Hondah Jets",
 	boing = "Boing",
-	concordia = "Concordia",
+	concordia = "Concordeh",
 	-- Art & property
 	warhole = "Andee Warhole",
 	basquiet = "Basquiet",

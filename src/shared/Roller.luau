@@ -25,7 +25,8 @@ export type Filler = {
 }
 
 -- Developer override (Studio / admins only): Gem = "random" picks a gem item with its normal
--- relative odds, "top" the case's most valuable one; Mutation forces that mutation id.
+-- relative odds, "top" the case's most valuable one, "grail" one of its grails at random (any
+-- gem item if it has none); Mutation forces that mutation id.
 export type Force = { Gem: string?, Mutation: string? }
 
 local Roller = {}
@@ -94,7 +95,19 @@ function Roller.roll(
 		if #gems == 0 then
 			gems = entries
 		end
-		if force.Gem == "top" then
+		if force.Gem == "grail" then
+			local grails = {}
+			for _, entry in gems do
+				if entry.Grail then
+					table.insert(grails, entry)
+				end
+			end
+			if #grails > 0 then
+				chosen = grails[math.min(math.floor(rng:NextNumber() * #grails) + 1, #grails)]
+			else
+				chosen = pick(gems, entryWeight, rng)
+			end
+		elseif force.Gem == "top" then
 			chosen = gems[1]
 			for _, entry in gems do
 				if entry.Item.Value > chosen.Item.Value then

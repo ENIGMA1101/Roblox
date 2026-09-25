@@ -3,6 +3,7 @@
 	animates anything; the spin is purely a replay of a result that is already saved.
 ]]
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
@@ -120,6 +121,20 @@ local function grant(player: Player, data: Data, case: Catalog.Case, rolls: { Ro
 			data.Stats.GemHits += 1
 		end
 		data.Stats.BestValue = math.max(data.Stats.BestValue, value)
+
+		-- Grails are bragging rights: tell the whole server.
+		local item = Catalog.ItemById[entry.Owned.I]
+		local rarity = Catalog.RarityById[item.Rarity]
+		if rarity.Fx >= 6 then
+			local serial = if entry.Owned.N then ` #{entry.Owned.N}` else ""
+			for _, other in Players:GetPlayers() do
+				PlayerState.notify(
+					other,
+					`🏆 {player.DisplayName} pulled {rarity.Name} {item.Name}{serial} from {case.Name}!`,
+					"gold"
+				)
+			end
+		end
 	end
 	PlayerState.sync(player, "Stats", data.Stats)
 	CaseService.Opened:Fire(player, case, results)

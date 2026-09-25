@@ -34,7 +34,8 @@ export type Item = {
 	Weight: number,
 }
 
-export type Entry = { Item: Item, P: number, Gem: boolean }
+-- Grail = an ultra-rare bragging-rights drop: fixed chance, never scaled by luck.
+export type Entry = { Item: Item, P: number, Gem: boolean, Grail: boolean? }
 
 export type Case = {
 	Id: string,
@@ -373,6 +374,16 @@ local function buildCase(def: any): Case
 				assert(def.Price and def.Price > 0, `Cases: "{def.Id}" needs a Price or TargetValue`)
 				target = def.Price * (def.RTP or defaultRTP(def.Price))
 			end
+			-- Grails count towards the return; the regular pool makes up the rest.
+			local grailSum, grailEv = 0, 0
+			for _, grail in def.Grails or {} do
+				local item = Catalog.ItemById[grail[1]]
+				if item then
+					grailSum += 1 / grail[2]
+					grailEv += Catalog.itemValue(item) / grail[2]
+				end
+			end
+			target = (target - grailEv) / (1 - grailSum)
 			chances = solveChances(def.Id, items, target)
 		end
 
@@ -399,7 +410,26 @@ local function buildCase(def: any): Case
 		end
 	end
 
+	-- Grails: fixed ultra-rare chances layered on top. They sit behind the gem, and the
+	-- regular odds shrink to make room.
+	local grailSum = 0
+	local grails: { Entry } = {}
+	for _, grail in def.Grails or {} do
+		local item = Catalog.ItemById[grail[1]]
+		assert(item, `Cases: "{def.Id}" lists unknown grail "{grail[1]}"`)
+		assert(item.Exclusive and not item.Supply, `Cases: grail "{item.Id}" must be an exclusive without Supply`)
+		assert(grail[2] >= 1000, `Cases: grail "{item.Id}" in "{def.Id}" is too common`)
+		grailSum += 1 / grail[2]
+		table.insert(grails, { Item = item, P = 1 / grail[2], Gem = true, Grail = true })
+	end
+	assert(grailSum < 0.01, `Cases: "{def.Id}" grails add up to more than 1%`)
+	for _, entry in entries do
+		entry.P *= 1 - grailSum
+	end
 	sortEntries(entries)
+	for _, entry in grails do
+		table.insert(entries, entry)
+	end
 	local limited = #entries > 0
 	for _, entry in entries do
 		limited = limited and entry.Item.Supply ~= nil
@@ -413,6 +443,9 @@ local function buildCase(def: any): Case
 	-- Luck cap: the gem share at which the case's expected value hits its limit.
 	local gemSum, gemEv, plainSum, plainEv = 0, 0, 0, 0
 	for _, entry in entries do
+		if entry.Grail then
+			continue
+		end
 		local value = Catalog.itemValue(entry.Item)
 		if entry.Gem then
 			gemSum += entry.P
@@ -431,12 +464,14 @@ local function buildCase(def: any): Case
 		if gemAvg <= plainAvg then
 			return 1
 		end
-		-- Measured on item value before mutations (mutation luck adds at most ~+24% on top).
-		local cap = (gemEv + plainEv) * minGain
+		-- Measured on item value before mutations (mutation luck adds at most ~+24% on top),
+		-- over the regular items only (luck never touches grails).
+		local regular = gemSum + plainSum
+		local cap = (gemEv + plainEv) / regular * minGain
 		if not def.Paid then
 			cap = math.max(cap, maxRTP * def.Price)
 		end
-		return math.clamp((cap - plainAvg) / (gemAvg - plainAvg), gemSum, 1)
+		return math.clamp((cap - plainAvg) / (gemAvg - plainAvg), gemSum / regular, 1)
 	end
 	local maxGemShare = gemShareCap(limits.MaxRTP, limits.MinGain)
 	local boostMaxGemShare = math.max(gemShareCap(limits.BoostMaxRTP, limits.BoostMinGain), maxGemShare)
@@ -564,16 +599,18 @@ end
 --[[
 	A case's odds with gem luck applied and sold-out items removed. Gem items are multiplied
 	by gemLuck (up to the case's MaxGemShare, or BoostMaxGemShare when boosted); the non-gem
-	items shrink proportionally.
+	items shrink proportionally. Grails keep their fixed chance; luck never touches them.
 ]]
 function Catalog.caseOdds(case: Case, gemLuck: number?, soldOut: { [string]: boolean }?, boosted: boolean?): { Entry }
 	local boost = math.max(gemLuck or 1, 1)
-	local gemSum, plainSum = 0, 0
+	local gemSum, plainSum, grailSum = 0, 0, 0
 	local entries: { Entry } = {}
 	for _, entry in case.Entries do
 		if not (soldOut and soldOut[entry.Item.Id]) then
-			table.insert(entries, { Item = entry.Item, P = entry.P, Gem = entry.Gem })
-			if entry.Gem then
+			table.insert(entries, { Item = entry.Item, P = entry.P, Gem = entry.Gem, Grail = entry.Grail })
+			if entry.Grail then
+				grailSum += entry.P
+			elseif entry.Gem then
 				gemSum += entry.P
 			else
 				plainSum += entry.P
@@ -593,8 +630,11 @@ function Catalog.caseOdds(case: Case, gemLuck: number?, soldOut: { [string]: boo
 	if plainSum <= 0 then
 		gemScale = 1 / gemSum
 	end
+	local regular = 1 - grailSum
 	for _, entry in entries do
-		entry.P = entry.P / total * (if entry.Gem then gemScale else plainScale)
+		if not entry.Grail then
+			entry.P = entry.P / total * regular * (if entry.Gem then gemScale else plainScale)
+		end
 	end
 	return entries
 end
