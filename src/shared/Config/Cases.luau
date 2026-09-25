@@ -414,7 +414,7 @@ local Cases: { CaseDef } = {
 				"lim_goldlubbu",
 			},
 		},
-		Weights = "supply",
+		TargetValue = 5000000,
 		GuaranteedMutation = true,
 		Paid = { ProductId = 0, Robux = 999 },
 	},

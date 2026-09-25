@@ -15,6 +15,7 @@
 		"FillBar"                            fill the luck bar
 		"ServerLuck", key                    start a server luck boost (x2 / x3 / x10) for 2 minutes
 		"PersonalLuck", count                set personal luck purchases
+		"SetRebirths", count                 set the rebirth count (no reset)
 
 	Forced items are real items saved to the player's data.
 ]]
@@ -94,6 +95,13 @@ local function handle(player: Player, data: Data, action: any, arg: any)
 		end
 		data.LuckLevel = math.clamp(math.floor(arg), 0, 1000)
 		PlayerState.sync(player, "Luck", data.LuckLevel)
+	elseif action == "SetRebirths" then
+		if type(arg) ~= "number" or arg ~= arg then
+			return { ok = false, error = "Bad request." }
+		end
+		data.Rebirths = math.clamp(math.floor(arg), 0, 1000)
+		PlayerState.sync(player, "Rebirths", data.Rebirths)
+		PlayerState.recomputeIncome(player)
 	elseif action == "FillBar" then
 		data.LuckBar = GameConfig.LuckBar.RollsToFill
 		PlayerState.sync(player, "LuckBar", data.LuckBar)

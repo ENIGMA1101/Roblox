@@ -20,6 +20,7 @@ local State = {
 	Keys = {} :: { [string]: number },
 	ShowcaseSlots = GameConfig.Showcase.BaseSlots,
 	LuckLevel = 0,
+	Rebirths = 0,
 	PersonalLuck = 0,
 	LuckBar = 0,
 	ServerLuck = { Mult = 1, EndsAt = 0, Boosts = {} } :: { Mult: number, EndsAt: number, Boosts: { any } },
@@ -44,6 +45,7 @@ local function apply(kind: string, payload: any)
 		State.Keys = payload.Keys
 		State.ShowcaseSlots = payload.ShowcaseSlots
 		State.LuckLevel = payload.LuckLevel or 0
+		State.Rebirths = payload.Rebirths or 0
 		State.PersonalLuck = payload.PersonalLuck or 0
 		State.LuckBar = payload.LuckBar or 0
 		State.Debug = payload.Debug == true
@@ -71,6 +73,8 @@ local function apply(kind: string, payload: any)
 		State.ShowcaseSlots = payload
 	elseif kind == "Luck" then
 		State.LuckLevel = payload
+	elseif kind == "Rebirths" then
+		State.Rebirths = payload
 	elseif kind == "PersonalLuck" then
 		State.PersonalLuck = payload
 	elseif kind == "LuckBar" then
@@ -111,7 +115,18 @@ end
 
 -- Permanent luck: upgrades, Luck pass, the personal Robux stack and the Mutation Luck pass.
 function State.permanentLuck(): Catalog.Luck
-	return Catalog.luckFor(State.LuckLevel, State.hasPass("Luck"), State.PersonalLuck, State.hasPass("MutationLuck"))
+	return Catalog.luckFor(
+		State.LuckLevel,
+		State.hasPass("Luck"),
+		State.PersonalLuck,
+		State.hasPass("MutationLuck"),
+		State.Rebirths
+	)
+end
+
+-- Rebirth bonus on sell value and showcase income.
+function State.sellMult(): number
+	return Catalog.rebirthSellMult(State.Rebirths)
 end
 
 -- Server luck multiplier right now (1 when none is running).
@@ -145,6 +160,7 @@ function State.luckSources(): { { Name: string, Mult: number } }
 	local barMult = if State.barFull() then GameConfig.LuckBar.Mult else 1
 	return {
 		{ Name = "Upgrades", Mult = Catalog.upgradeLuck(State.LuckLevel) },
+		{ Name = "Rebirths", Mult = Catalog.rebirthLuck(State.Rebirths) },
 		{ Name = "2x Luck pass", Mult = if State.hasPass("Luck") then GameConfig.Luck.PassMult else 1 },
 		{ Name = "Personal", Mult = Catalog.personalLuckMult(State.PersonalLuck) },
 		{ Name = "Server", Mult = State.serverLuckMult() },

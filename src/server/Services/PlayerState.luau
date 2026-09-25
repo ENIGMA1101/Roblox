@@ -11,6 +11,7 @@
 		"Income"   cash per second
 		"Slots"    showcase slot count
 		"Luck"     luck upgrade level
+		"Rebirths" rebirth count
 		"PersonalLuck" personal Robux luck purchases
 		"LuckBar"  items opened toward the next 10x luck bar
 		"ServerLuck" { Mult, EndsAt, Boosts } server-wide timed luck
@@ -70,16 +71,23 @@ function PlayerState.bind(name: string, handler: (Player, Data, ...any) -> { [st
 	end
 end
 
--- Permanent luck (upgrade level, Luck pass, personal Robux stack, Mutation Luck pass).
--- Temporary boosts are added on top by CaseService.
+-- Permanent luck (upgrade level, rebirths, Luck pass, personal Robux stack, Mutation Luck
+-- pass). Temporary boosts are added on top by CaseService.
 function PlayerState.luck(player: Player): Catalog.Luck
 	local data = DataService.get(player)
 	return Catalog.luckFor(
 		if data then data.LuckLevel else 0,
 		Passes.has(player, "Luck"),
 		if data then data.PersonalLuck else 0,
-		Passes.has(player, "MutationLuck")
+		Passes.has(player, "MutationLuck"),
+		if data then data.Rebirths else 0
 	)
+end
+
+-- Rebirth bonus on sell value and showcase income.
+function PlayerState.sellMult(player: Player): number
+	local data = DataService.get(player)
+	return Catalog.rebirthSellMult(if data then data.Rebirths else 0)
 end
 
 function PlayerState.debugAllowed(player: Player): boolean
@@ -97,6 +105,7 @@ function PlayerState.snapshot(player: Player): { [string]: any }?
 		Items = data.Items,
 		ShowcaseSlots = data.ShowcaseSlots,
 		LuckLevel = data.LuckLevel,
+		Rebirths = data.Rebirths,
 		PersonalLuck = data.PersonalLuck,
 		LuckBar = data.LuckBar,
 		Debug = PlayerState.debugAllowed(player),
@@ -212,6 +221,7 @@ function PlayerState.recomputeIncome(player: Player)
 	if Passes.has(player, "DoubleIncome") then
 		income *= 2
 	end
+	income *= Catalog.rebirthSellMult(data.Rebirths)
 	income += GameConfig.Showcase.BaseIncome
 	incomes[player] = income
 	PlayerState.sync(player, "Income", income)
@@ -258,6 +268,7 @@ function PlayerState.sell(player: Player, ids: { string }): (number, number)
 		end
 	end
 	if count > 0 then
+		total = math.floor(total * Catalog.rebirthSellMult(data.Rebirths) + 0.5)
 		PlayerState.sync(player, "Items", { Removed = removed })
 		PlayerState.addCash(player, total)
 		if showcaseChanged then
@@ -361,6 +372,10 @@ local function onLoaded(player: Player, data: Data)
 	local cash = Instance.new("StringValue")
 	cash.Name = "Cash"
 	cash.Parent = stats
+	local rebirths = Instance.new("IntValue")
+	rebirths.Name = "Rebirths"
+	rebirths.Value = data.Rebirths
+	rebirths.Parent = stats
 	stats.Parent = player
 	updateLeaderstats(player, data)
 

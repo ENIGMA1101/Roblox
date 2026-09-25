@@ -1,11 +1,14 @@
 # Vermeil Exchange
 
 A Roblox luxury case-opening game. Players walk up to the Vermeil Exchange stall, open cases
-on a spinning reel (sideways for a single open, one vertical reel per case for multi-opens),
+on a slot-machine reel (sideways for a single open; with several cases every reel blasts
+along at full speed and they brake and stop one at a time),
 and pull luxury items across 11 rarities, each with a parody brand that
 nudges its price. On top of that there's a rare mutation that multiplies the value by ×1.1 up to ×15.
 When a case's top rarities hit, the reel lands on a **yellow gem** first. The gem pops,
 flickers and bursts, then the reel re-spins through the rare pool to reveal the prize.
+**Rebirth** is the long-term loop: trade a run's cash and items for permanent luck and sell
+bonuses, and do it again. A live feed in the bottom right shows everyone's big pulls.
 
 Everything is written from scratch in Luau. The old scripts were only used as a reference for
 the idea.
@@ -52,6 +55,8 @@ src/server   → ServerScriptService.Server
   PlayerState    the only code that changes cash/items/keys/showcase; syncs the client
   CaseService    open + free case: validate, charge, roll, save, then return results
   ShowcaseService  passive income tick, slot purchases, offline earnings
+  RebirthService   rebirth: checks the cost, resets the run, keeps exclusives
+  FeedService      broadcasts notable pulls to the live feed once each spin has landed
   MonetizationService  ProcessReceipt (idempotent, saves before granting)
   Passes         gamepass ownership
   StallBuilder / StallService   the map stall, prompts, best-pull screen
@@ -59,6 +64,9 @@ src/client   → StarterPlayerScripts.Client
   UI/Spinner     the reel, gem sequence, rarity + mutation reveals
   UI/CaseShop    case grid + preview with every odd
   UI/Inventory   items + showcase tabs
+  UI/Rebirth     rebirth window (cost, bonuses, ladder, what resets / keeps)
+  UI/Feed        live pull feed, bottom right
+  UI/LuckHud     luck bar, total luck breakdown, personal + server luck buttons
   UI/Hud, Store, Toast, Window, Kit, Theme, ItemVisual, Root
 tools/balance.py   economy simulator (needs Python 3 + the luau CLI)
 ```
@@ -73,15 +81,17 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
     from every item of that rarity.
   - **Themed (22):** PackDraw-style cases for one category or one brand: Scent Lab, Drop Day,
     Sneakerhead, Top Shelf, Tech Haul, Appel Store, Tick Tock, Bag Drop, Grail Hunter, Rolax Only,
-    Ice Box, Two Wheels, Hermez Vault, Haute Horlogerie, Dream Garage, Prancing Horse,
+    Ice Vault, Two Wheels, Hermez Vault, Haute Horlogerie, Dream Garage, Red Stallion,
     Hypercar Hunt, Open Water, The Gallery, Real Estate Mogul and Jet Set ($800 to $60M).
     Their odds are worked out automatically from the price: cheaper items are likelier, and items worth
     10× the case's average pull or more hide behind the gem.
   - **Robux (4), open instantly on purchase, guaranteed mutation on every item:**
     Velvet Rope (R$99), Black Card (R$333), Jackpot (R$777) and Pop Icons (R$999). Their items are
-    exclusive and numbered with a global serial (#1, #2, …). Pop Icons is fully **Limited**:
-    each item has a fixed supply shared by every server (e.g. only 10 Golden Lubbus will ever
-    exist), shown as "#7 / 10". Sold-out items drop out of the odds.
+    exclusive and numbered with a global serial (#1, #2, …). The spread is tight so the best
+    items feel reachable: each case's top item is about 1 in 80-95, and its values run only ~15x
+    from cheapest to best. Pop Icons is fully **Limited**: each item has a fixed supply shared by
+    every server (e.g. only 160 Golden Lubbus will ever exist), shown as "#7 / 160". Sold-out
+    items drop out of the odds. Robux items (and grails) are kept through rebirth.
 - **Items:** 281 items in 17 categories (fashion, streetwear, sneakers, fragrance, tech,
   watches, bags, jewellery, drinks, collectibles, cars, hypercars, bikes, boats, aviation, art,
   property) plus 29 Robux exclusives. Rarity comes from value: Common → Uncommon → Rare → Epic →
@@ -121,12 +131,13 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
 - **Luck** only changes which item you pull. It never changes mutations. Every source multiplies
   together into one number, shown above the luck bar as a full breakdown (e.g.
   `🍀 LUCK ×54 = Upgrades ×1.7 × 2x Luck pass ×2 × Personal ×8 × Server ×2`):
-  - **Luck upgrades (cash, no max level):** each level multiplies luck by ×1.1 (level 10 ≈ ×2.6,
-    20 ≈ ×6.7, 30 ≈ ×17). The price grows ×1.9 per level ($25K, …, ~$4.9B at level 20). This is
-    the endless cash sink.
+  - **Luck upgrades (cash, reset on rebirth):** each level multiplies luck by ×1.05 (level 10 ≈
+    ×1.6, 20 ≈ ×2.7). The price grows ×1.9 per level from $25K.
+  - **Rebirths (permanent):** ×1.1 luck each, compounding (5 = ×1.6, 10 = ×2.6).
   - **2x Luck gamepass:** a real ×2.
-  - **Personal luck stack (Robux, permanent):** the 🍀 icon on the right. ×2, then ×4, ×6, ×8…
-    (+2 each buy), priced 5, 8, 11, 17, 25… Robux (×1.5 each), with one developer product per step.
+  - **Personal luck stack (Robux, permanent, kept on rebirth):** the 🍀 icon on the right. +50%
+    per buy (×1.5, ×2, ×2.5, ×3…), priced 5, 6, 8, 10, 12… Robux (×1.25 each), one developer
+    product per step.
   - **Server luck (Robux, 15 min, everyone in the server):** the 🌐 icon on the right. ×2 for R$33,
     ×3 for R$99, ×10 for R$199.
   - **Luck bar (free):** fills by 1 per item opened. At 30, the next open gets ×10.
@@ -136,14 +147,27 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
     preview shows every rarity's normal → lucky odds, and the Luck window shows each case's top
     item chance now → next level.
   - **Diminishing returns, never a wall:** luck works at full strength until it has added
-    `Luck.FullGain` (+75% of the price) to a case's return. Past that, gains slow down
-    logarithmically but never stop. Temporary boosts get much more room (`BoostFullGain` +200%).
-    Rough numbers: ×10 luck takes most cases to 150-240% return, ×100 to 200-360%, and a ×1000
-    boost to 300-700%. Grails keep their fixed odds, so the rarest items stay rare no matter what.
+    `Luck.FullGain` (+40% of the price) to a case's return. Past that, gains slow down
+    logarithmically but never stop. Temporary boosts get more room (`BoostFullGain` +120%).
+    Rough numbers: ×2 luck takes cases to 85-150% return, ×10 to 130-200%, ×100 to 170-240%, and a
+    ×1000 boost to 320-450%. Grails keep their fixed odds, so the rarest items stay rare no matter what.
+- **Rebirth** (🔁 on the left): needs cash in hand ($500K, $1.75M, $6.9M, $30M, $148M, $816M,
+  $5B, $35B, $269B… The multiplier grows each time, see `GameConfig.Rebirth`).
+  - **Resets:** cash (back to $5,000), luck upgrade levels, and every item pulled with cash.
+  - **Keeps:** Robux case items, grails, keys, showcase slots, gamepasses, personal Robux luck and stats.
+  - **Each rebirth adds:** ×1.1 luck and +15% sell value and showcase income, forever.
+  - The window shows the next 8 rebirths with their costs and bonuses. The button needs a second
+    click to confirm. Everyone in the server is told when someone rebirths.
+- **Live feed:** Epic-or-better pulls, gem hits and Iced Out-or-better mutations from everyone in
+  the server. They pop in at the bottom right, push older cards left, and fade out (3 at a time, 25 s
+  each). Each card is sent once that spin has landed, so it never spoils someone's reveal.
+- **Slot-machine spin:** reels run at full speed (`Spin.CellsPerSecond`) for `Cruise` seconds, then
+  brake smoothly over `Decel`. With several cases, each reel starts braking `Stagger` seconds after
+  the one before, so they stop left to right. Rarer cells click louder as they fly past.
 - **Mutation luck:** only the **2x Mutation Luck** gamepass changes mutation odds (it halves every
   "1 in N"), so a Crown Jewel stays a 1 in 100,000 moment even with the pass. Robux cases still
   guarantee a mutation.
-- **Robux:** 6 gamepasses (2x Luck, 2x Mutation Luck, Fast Open, Auto Open, Multi Open+, 2x Showcase Income),
+- **Robux:** 6 gamepasses (2x Luck, 2x Mutation Luck, 2x Spin Speed, Auto Open, Multi Open+, 2x Showcase Income),
   3 cash packs that scale with your income, and optional key bundles per case. Key bundles are
   only sold inside the case preview, directly beside the full odds list.
 
@@ -165,12 +189,13 @@ free)** in the preview, or the Dev panel, to open it without paying.
 Create these developer products and paste the ids into `Config/Monetization.luau`:
 
 - `ServerLuck`: three products at 33, 99 and 199 Robux (2x, 3x, 10x for 15 minutes).
-- `PersonalLuck.ProductIds`: one product per step, in order, priced 5, 8, 11, 17, 25, 38,
-  57, 85, 128, 192, 288, 432, 649, 973, 1460, 2189, 3284, 4926, 7389 and 11084 Robux (step N =
-  5 × 1.5^(N-1)). Roblox products can't change price, which is why each step is its own
+- `PersonalLuck.ProductIds`: one product per step, in order, priced 5, 6, 8, 10, 12, 15, 19,
+  24, 30, 37, 47, 58, 73, 91, 114, 142, 178, 222, 278 and 347 Robux (step N = 5 × 1.25^(N-1)). Roblox products can't change price, which is why each step is its own
   product. Fewer ids means fewer purchasable steps; add more to extend it.
-- Gamepasses: create **2x Luck** and **2x Mutation Luck** (plus the others) and paste their ids
-  into `Passes`.
+- Gamepasses: create **2x Luck**, **2x Mutation Luck** and **2x Spin Speed** (plus the others) and
+  paste their ids into `Passes`. 2x Spin Speed owners get an ON/OFF toggle at the top right of the
+  spin screen; everyone else sees a button to buy it there. If you'd already created the old
+  "Fast Open" pass, reuse its id for 2x Spin Speed.
 
 ## Testing the gem and mutations (developer tools)
 
@@ -182,7 +207,9 @@ In Studio a 🛠️ **Dev** button appears on the HUD. It opens a panel where yo
   column, then they clear.
 - **Open any case directly** from the panel, ×1 to ×5, without walking to the stall.
 - Add $1M / $100M / $10B, make the free case ready, set your luck level to 0, 10 or 25, fill the
-  luck bar, start 2x / 3x / 10x server luck for 2 minutes, and add or reset personal luck steps.
+  luck bar, start 2x / 3x / 10x server luck for 2 minutes, add or reset personal luck steps, and
+  add or reset rebirths (without the reset, to test the bonuses). To test a real rebirth, add $10B
+  and use the 🔁 Rebirth window.
 
 The server checks permission on every request. The panel works in Studio, and in live servers only
 for UserIds listed in `GameConfig.Debug.Admins`; set `Debug.Enabled = false` to turn it off
@@ -215,39 +242,59 @@ LUAU=/path/to/luau python3 tools/balance.py            # full report
 LUAU=/path/to/luau python3 tools/balance.py --quick    # EV table only
 ```
 
-For all 32 cases it prints the item count, expected value and return-to-player (RTP): base, with
-the 2x Luck pass, at a late-game reference luck (level 20 + 4 personal buys = ×54, and ×108 with the pass),
-and with a ×100 boost on top. It also prints the gem chance, the top item, and a luck curve (RTP and
-top-item odds at ×1 to ×10K luck). Then it runs a roll check that the roller matches the maths, and
-15 simulated players over 80 hours who open mixed cases and buy luck levels. A case whose price
+For all 32 cases it prints the item count, expected value and return-to-player (RTP). RTP is
+shown base, with the 2x Luck pass, at a late-game reference luck (level 15, 8 rebirths, 4 personal
+buys = ×13.4, ×26.7 with the pass), and with a ×100 boost on top. It also prints the gem chance,
+the top item, and a luck curve (RTP and top-item odds at ×1 to ×10K luck). Then it runs a roll
+check that the roller matches the maths, and 15 simulated free players over 80 hours. The bots open
+mixed cases, buy luck levels and slots, and rebirth as soon as they can afford it. A case whose price
 can't be reached by its items fails at startup with a message telling you what to change.
 
 Mixed-case defaults:
 
-| Case | Price | RTP | + 2x Luck pass | Luck ×108 | ×108 + ×100 boost | Gem (base) |
+| Case | Price | RTP | + 2x Luck pass | Luck ×13.4 | ×26.7 (+ pass) | Gem (base) |
 |---|---|---|---|---|---|---|
-| Street Luxe | $800 | 108% | 136% | 315% | 765% | 1 in 263 |
-| Boutique Box | $5.8K | 92% | 126% | 312% | 766% | 1 in 276 |
-| Atelier Crate | $48K | 85% | 99% | 243% | 647% | 1 in 153 |
-| Penthouse Case | $350K | 80% | 96% | 238% | 605% | 1 in 185 |
-| Monaco Vault | $2.65M | 75% | 92% | 233% | 556% | 1 in 200 |
-| The Vermeil Vault | $12M | 68% | 84% | 218% | 509% | 1 in 31 |
+| Street Luxe | $800 | 108% | 136% | 201% | 216% | 1 in 263 |
+| Boutique Box | $5.8K | 92% | 126% | 193% | 208% | 1 in 276 |
+| Atelier Crate | $48K | 85% | 99% | 152% | 167% | 1 in 153 |
+| Penthouse Case | $350K | 80% | 96% | 150% | 164% | 1 in 185 |
+| Monaco Vault | $2.65M | 75% | 92% | 147% | 160% | 1 in 200 |
+| The Vermeil Vault | $12M | 68% | 84% | 137% | 150% | 1 in 31 |
 
 Themed cases return ~100% at $800 down to ~71% at $60M, with gems between 1 in 28 and 1 in 480.
-The Robux cases average $124K (R$99), $557K (R$333), $2.2M (R$777) and $6.3M (R$999) per pull,
-guaranteed mutation included; change `TargetValue` on a case to adjust.
+The Robux cases average $124K (R$99), $557K (R$333), $2.2M (R$777) and $6.2M (R$999) per pull,
+guaranteed mutation included, and their top items land about 1 in 80-95; change `TargetValue` or
+the item values to adjust.
 
-Median time for simulated free players (no passes, no Robux luck) to reach each mixed case:
-Boutique ~45 min, Atelier ~3 h, Penthouse ~5.5 h, Monaco ~9 h, Vermeil Vault ~11 h. They're still
-buying luck levels at 80 hours, so max luck is the endgame chase.
+Simulated free players (no passes, no Robux luck, median of 15):
 
-Luck is deliberately strong: players who stack it really are OP, and cases pay well over 100%.
-What keeps it from breaking the game:
+| Rebirth | Cost | Reached at | Gap |
+|---|---|---|---|
+| 1 | $500K | 3h55m | 3h55m |
+| 2 | $1.75M | 7h12m | 3h17m |
+| 3 | $6.86M | 11h35m | 4h23m |
+| 4 | $30.1M | 13h58m | 2h23m |
+| 5 | $148M | 17h13m | 3h14m |
+| 6 | $816M | 19h31m | 2h18m |
+| 7 | $5.03B | 21h39m | 2h08m |
+| 8 | $34.8B | 25h06m | 3h27m |
+| 9 | $269B | 38h09m | 13h03m |
+
+After rebirth 9 the bots stall: cash stops compounding because the Vermeil Vault ($12M) is the
+most expensive case. The next step for the late game is 2-3 cases above it (or raising
+`Rebirth.CostRamp` less steeply), so rebirths 9+ stay a steady chase instead of a wall.
+
+Luck is deliberately strong for players who stack it, and cases can pay well over 100%.
+What keeps it in check:
+- Luck levels reset on every rebirth.
 - The logarithmic slowdown past `Luck.FullGain`.
-- Luck upgrade prices that grow ×1.9 per level while luck grows ×1.1.
-- Grails and mutations that luck never touches.
+- Grails and mutations, which luck never touches.
 
-To tone luck down, lower `FullGain`/`Softness` (or the Boost versions). To make it even stronger, raise them.
+To change the pace:
+- **Luck strength:** `Luck.FullGain` / `Softness` (and the Boost versions).
+- **Luck per level:** `LuckUpgrades.PerLevel`.
+- **Rebirth rewards:** `Rebirth.LuckMult` / `SellBonus`.
+- **Time between rebirths:** `Rebirth.BaseCost` / `CostGrowth` / `CostRamp`.
 
 ## Advice for the best result
 

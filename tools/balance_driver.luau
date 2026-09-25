@@ -28,11 +28,13 @@ end
 
 -- 1. Expected value per case ------------------------------------------------------------------
 
--- "Max luck" columns use a late-game reference: level 20 and 4 personal luck purchases (8x).
-local REFERENCE_LEVEL = 20
+-- "Max luck" columns use a late-game reference: luck level 15, 8 rebirths and 4 personal
+-- luck purchases (3x).
+local REFERENCE_LEVEL = 15
+local REFERENCE_REBIRTHS = 8
 local REFERENCE_PERSONAL = 4
-local maxLuck = Catalog.luckFor(REFERENCE_LEVEL, false, REFERENCE_PERSONAL)
-local maxLuckPass = Catalog.luckFor(REFERENCE_LEVEL, true, REFERENCE_PERSONAL)
+local maxLuck = Catalog.luckFor(REFERENCE_LEVEL, false, REFERENCE_PERSONAL, false, REFERENCE_REBIRTHS)
+local maxLuckPass = Catalog.luckFor(REFERENCE_LEVEL, true, REFERENCE_PERSONAL, false, REFERENCE_REBIRTHS)
 local boosted = Catalog.boostLuck(maxLuckPass, 10 * GameConfig.LuckBar.Mult)
 local passLuck = Catalog.luckFor(0, true, 0)
 
@@ -100,8 +102,9 @@ print(
 
 print(
 	string.format(
-		"\nReference luck: level %d + %d personal buys = %s, with pass %s, x100 boost %s",
+		"\nReference luck: level %d + %d rebirths + %d personal buys = %s, with pass %s, x100 boost %s",
 		REFERENCE_LEVEL,
+		REFERENCE_REBIRTHS,
 		REFERENCE_PERSONAL,
 		Format.mult(maxLuck.Item),
 		Format.mult(maxLuckPass.Item),
@@ -201,9 +204,9 @@ end
 local maxOpen = GameConfig.MaxOpenBase
 
 local function batchSeconds(count: number, gem: boolean): number
-	local seconds = Spin.Duration + Spin.Stagger * (count - 1) + Spin.RevealTime + 1.5
+	local seconds = Spin.Cruise + Spin.Stagger * (count - 1) + Spin.Decel + Spin.RevealTime + 1.5
 	if gem then
-		seconds += Spin.GemHold + Spin.GemSpinDuration
+		seconds += Spin.GemHold + Spin.GemCruise + Spin.GemDecel
 	end
 	return seconds
 end
@@ -214,6 +217,9 @@ local function runBot()
 	local cash = GameConfig.StartingCash
 	local slots = Showcase.BaseSlots
 	local luckLevel = 0
+	local rebirths = 0
+	local rebirthAt: { number } = {}
+	local sellMult = 1
 	local shown: { number } = {} -- showcased values, ascending
 	local income = Showcase.BaseIncome
 	local t = 0
@@ -225,7 +231,7 @@ local function runBot()
 	local function recalc()
 		income = Showcase.BaseIncome
 		for _, v in shown do
-			income += Catalog.incomeOf(v)
+			income += Catalog.incomeOf(v) * sellMult
 		end
 	end
 
@@ -233,10 +239,10 @@ local function runBot()
 		if #shown < slots then
 			table.insert(shown, value)
 		elseif value > shown[1] then
-			cash += shown[1]
+			cash += shown[1] * sellMult
 			shown[1] = value
 		else
-			cash += value
+			cash += value * sellMult
 			return
 		end
 		table.sort(shown)
@@ -252,14 +258,28 @@ local function runBot()
 				total += v
 			end
 			snapshots[nextCheckpoint] =
-				{ cash = cash, income = income, showcase = total, slots = slots, luck = luckLevel }
+				{ cash = cash, income = income, showcase = total, slots = slots, luck = luckLevel, rebirths = rebirths }
 			nextCheckpoint += 1
 		end
 	end
 
 	while t < HOURS * 3600 do
+		-- Rebirth as soon as it's affordable: back to starting cash, no items, luck level 0.
+		local rebirthCost = Catalog.rebirthCost(rebirths)
+		if cash >= rebirthCost then
+			rebirths += 1
+			table.insert(rebirthAt, t)
+			sellMult = Catalog.rebirthSellMult(rebirths)
+			cash = GameConfig.StartingCash
+			luckLevel = 0
+			table.clear(shown)
+			recalc()
+		end
+		local saving = cash >= rebirthCost * 0.5
+
 		if t >= freeReadyAt then
-			local roll = Roller.roll(freeCase, Catalog.luckFor(luckLevel, false, 0), rng) :: Roller.Roll
+			local roll =
+				Roller.roll(freeCase, Catalog.luckFor(luckLevel, false, 0, false, rebirths), rng) :: Roller.Roll
 			receive(Catalog.valueOf(roll))
 			freeReadyAt = t + GameConfig.FreeCase.Cooldown
 			advance(batchSeconds(1, roll.Gem))
@@ -267,21 +287,23 @@ local function runBot()
 
 		local extra = Showcase.SlotPrices[slots - Showcase.BaseSlots + 1]
 		local luckPrice = Catalog.luckUpgradePrice(luckLevel)
-		if luckPrice and cash >= luckPrice * 3 then
+		if luckPrice and cash >= luckPrice * 3 and not saving then
 			cash -= luckPrice
 			luckLevel += 1
 		end
-		local luck = Catalog.luckFor(luckLevel, false, 0)
+		local luck = Catalog.luckFor(luckLevel, false, 0, false, rebirths)
 
-		if extra and cash >= extra * 2 then
+		if extra and cash >= extra * 2 and not saving then
 			cash -= extra
 			slots += 1
 		end
 
+		-- Saving for a rebirth: only open cases that cost a sliver of the pile.
+		local budget = if saving then cash * 0.02 else cash
 		local chosen: any, count = nil, 0
 		for i = #botCases, 1, -1 do
 			local case = botCases[i]
-			if case.Price * maxOpen <= cash then
+			if case.Price * maxOpen <= budget then
 				chosen, count = case, maxOpen
 				break
 			end
@@ -289,8 +311,8 @@ local function runBot()
 		if not chosen then
 			for i = #botCases, 1, -1 do
 				local case = botCases[i]
-				if case.Price <= cash then
-					chosen, count = case, math.min(maxOpen, math.floor(cash / case.Price))
+				if case.Price <= budget then
+					chosen, count = case, math.min(maxOpen, math.floor(budget / case.Price))
 					break
 				end
 			end
@@ -310,13 +332,14 @@ local function runBot()
 			local cheapest = botCases[1].Price
 			local wait = freeReadyAt - t
 			if income > 0 then
-				wait = math.min(wait, (cheapest - cash) / income)
+				local goal = if saving then rebirthCost else cheapest
+				wait = math.min(wait, (goal - cash) / income)
 			end
 			advance(math.max(wait, 1))
 		end
 	end
 
-	return firstOpen, snapshots
+	return firstOpen, snapshots, rebirthAt
 end
 
 local function hm(seconds: number?): string
@@ -338,11 +361,16 @@ end
 print(string.format("\n== Progression: %d bots, %d hours of play each ==", BOTS, HOURS))
 local opens: { [string]: { number } } = {}
 local snaps: { { { [string]: number } } } = {}
+local rebirthTimes: { { number } } = {}
 for _, case in botCases do
 	opens[case.Id] = {}
 end
 for _ = 1, BOTS do
-	local firstOpen, snapshots = runBot()
+	local firstOpen, snapshots, rebirthAt = runBot()
+	for index, at in rebirthAt do
+		rebirthTimes[index] = rebirthTimes[index] or {}
+		table.insert(rebirthTimes[index], at)
+	end
 	for id, at in firstOpen do
 		table.insert(opens[id], at)
 	end
@@ -361,6 +389,20 @@ for _, case in botCases do
 	)
 end
 
+print("\n" .. pad("rebirth", 10) .. lpad("cost", 10) .. lpad("reached by", 12) .. lpad("median", 10) .. lpad("gap", 10))
+local previous = 0
+for index, list in rebirthTimes do
+	local at = median(list) :: number
+	print(
+		pad("#" .. index, 10)
+			.. lpad(Format.cash(Catalog.rebirthCost(index - 1)), 10)
+			.. lpad(string.format("%d/%d", #list, BOTS), 12)
+			.. lpad(hm(at), 10)
+			.. lpad(hm(at - previous), 10)
+	)
+	previous = at
+end
+
 print(
 	"\n"
 		.. pad("played", 10)
@@ -368,10 +410,11 @@ print(
 		.. lpad("income/s", 12)
 		.. lpad("slots", 8)
 		.. lpad("luck", 6)
+		.. lpad("rebirths", 10)
 		.. "   (medians)"
 )
 for index, hours in CHECKPOINTS do
-	local showcase, income, slots, luck = {}, {}, {}, {}
+	local showcase, income, slots, luck, rebirthCounts = {}, {}, {}, {}, {}
 	for _, snapshots in snaps do
 		local snap = snapshots[index]
 		if snap then
@@ -379,6 +422,7 @@ for index, hours in CHECKPOINTS do
 			table.insert(income, snap.income)
 			table.insert(slots, snap.slots)
 			table.insert(luck, snap.luck)
+			table.insert(rebirthCounts, snap.rebirths)
 		end
 	end
 	print(
@@ -387,5 +431,6 @@ for index, hours in CHECKPOINTS do
 			.. lpad(Format.cash(median(income) or 0), 12)
 			.. lpad(tostring(median(slots) or 0), 8)
 			.. lpad(tostring(median(luck) or 0), 6)
+			.. lpad(tostring(median(rebirthCounts) or 0), 10)
 	)
 end

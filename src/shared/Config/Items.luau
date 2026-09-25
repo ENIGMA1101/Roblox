@@ -660,45 +660,45 @@ add("property", {
 local EXCLUSIVE = { Rarity = "Limited", Exclusive = true }
 
 add("velvetrope", {
-	{ "vr_wristband", "Gold VIP Wristband", "velvetrope", 12000, "🎟️" },
-	{ "vr_bottle", "Sparkler Bottle Service", "velvetrope", 28000, "🍾" },
-	{ "vr_mic", "Gold Microphone", "velvetrope", 55000, "🎤" },
-	{ "vr_grillz", "Rose Gold Grillz", "velvetrope", 90000, "😁" },
-	{ "vr_booth", "Private Booth Key", "velvetrope", 180000, "🗝️" },
-	{ "vr_supercar", "Neon-Wrapped Supercar", "velvetrope", 750000, "🏎️" },
-	{ "vr_club", "The Whole Nightclub", "velvetrope", 6000000, "🪩" },
+	{ "vr_wristband", "Gold VIP Wristband", "velvetrope", 25000, "🎟️" },
+	{ "vr_bottle", "Sparkler Bottle Service", "velvetrope", 45000, "🍾" },
+	{ "vr_mic", "Gold Microphone", "velvetrope", 70000, "🎤" },
+	{ "vr_grillz", "Rose Gold Grillz", "velvetrope", 110000, "😁" },
+	{ "vr_booth", "Private Booth Key", "velvetrope", 200000, "🗝️" },
+	{ "vr_supercar", "Neon-Wrapped Supercar", "velvetrope", 450000, "🏎️" },
+	{ "vr_club", "The Whole Nightclub", "velvetrope", 1900000, "🪩" },
 }, EXCLUSIVE)
 
 add("blackcard", {
-	{ "bc_card", "Titanium Black Card", "blackcard", 60000, "💳" },
-	{ "bc_chef", "Private Chef Night", "blackcard", 110000, "🍽️" },
-	{ "bc_suite", "Presidential Suite Stay", "blackcard", 240000, "🛎️" },
-	{ "bc_tourbillon", "Black Card Tourbillon", "blackcard", 600000, "⌚" },
-	{ "bc_charter", "Superyacht Charter Week", "blackcard", 1500000, "🛥️" },
-	{ "bc_jetcard", "Jet Card: 100 Hours", "blackcard", 4500000, "✈️" },
-	{ "bc_island", "Island Buyout Weekend", "blackcard", 25000000, "🏝️" },
+	{ "bc_card", "Titanium Black Card", "blackcard", 110000, "💳" },
+	{ "bc_chef", "Private Chef Night", "blackcard", 200000, "🍽️" },
+	{ "bc_suite", "Presidential Suite Stay", "blackcard", 320000, "🛎️" },
+	{ "bc_tourbillon", "Black Card Tourbillon", "blackcard", 550000, "⌚" },
+	{ "bc_charter", "Superyacht Charter Week", "blackcard", 1000000, "🛥️" },
+	{ "bc_jetcard", "Jet Card: 100 Hours", "blackcard", 2200000, "✈️" },
+	{ "bc_island", "Island Buyout Weekend", "blackcard", 8500000, "🏝️" },
 }, EXCLUSIVE)
 
 add("jackpot", {
-	{ "jp_chip", "High Roller Chip", "highroller", 250000, "🪙" },
-	{ "jp_dice", "Diamond Dice", "highroller", 600000, "🎲" },
-	{ "jp_slot", "Golden Slot Machine", "highroller", 1500000, "🎰" },
-	{ "jp_roulette", "Solid Gold Roulette Wheel", "highroller", 3500000, "🎡" },
-	{ "jp_whale", "Whale Suite Key", "highroller", 8000000, "🐋" },
-	{ "jp_floor", "Your Own Casino Floor", "highroller", 40000000, "🏛️" },
-	{ "jp_strip", "The Strip Megaresort", "highroller", 250000000, "🌃" },
+	{ "jp_chip", "High Roller Chip", "highroller", 450000, "🪙" },
+	{ "jp_dice", "Diamond Dice", "highroller", 800000, "🎲" },
+	{ "jp_slot", "Golden Slot Machine", "highroller", 1300000, "🎰" },
+	{ "jp_roulette", "Solid Gold Roulette Wheel", "highroller", 2200000, "🎡" },
+	{ "jp_whale", "Whale Suite Key", "highroller", 4000000, "🐋" },
+	{ "jp_floor", "Your Own Casino Floor", "highroller", 9000000, "🏛️" },
+	{ "jp_strip", "The Strip Megaresort", "highroller", 34000000, "🌃" },
 }, EXCLUSIVE)
 
 -- Limited: capped supply across every server, forever.
 add("popculture", {
-	{ "lim_lubbu", "Lubbu Plush (Secret Edition)", "popmartt", 1200000, "🧸", { Supply = 5000 } },
-	{ "lim_quencher", "Diamond Quenchah 40oz", "stanlee", 2000000, "🥤", { Supply = 4000 } },
-	{ "lim_dubaichoc", "Gold Leaf Pistachio Chocolate", "fixx", 3500000, "🍫", { Supply = 3000 } },
-	{ "lim_prym", "Prym Launch Crate (Sealed)", "prym", 6000000, "🧃", { Supply = 2000 } },
-	{ "lim_brainrot", "Golden Brainrot Idol", "brainrotstudio", 15000000, "🗿", { Supply = 800 } },
-	{ "lim_pixelape", "Pixel Ape #0001 Canvas", "pixelapeclub", 40000000, "🐵", { Supply = 300 } },
-	{ "lim_cyberpickup", "Cyber Pickup (Stainless)", "teslo", 120000000, "🛻", { Supply = 100 } },
-	{ "lim_goldlubbu", "The Golden Lubbu", "popmartt", 500000000, "👑", { Supply = 10 } },
+	{ "lim_lubbu", "Lubbu Plush (Secret Edition)", "popmartt", 1300000, "🧸", { Supply = 5000 } },
+	{ "lim_quencher", "Diamond Quenchah 40oz", "stanlee", 2200000, "🥤", { Supply = 3750 } },
+	{ "lim_dubaichoc", "Gold Leaf Pistachio Chocolate", "fixx", 3500000, "🍫", { Supply = 2500 } },
+	{ "lim_prym", "Prym Launch Crate (Sealed)", "prym", 5500000, "🧃", { Supply = 1650 } },
+	{ "lim_brainrot", "Golden Brainrot Idol", "brainrotstudio", 9000000, "🗿", { Supply = 1070 } },
+	{ "lim_pixelape", "Pixel Ape #0001 Canvas", "pixelapeclub", 17000000, "🐵", { Supply = 600 } },
+	{ "lim_cyberpickup", "Cyber Pickup (Stainless)", "teslo", 32000000, "🛻", { Supply = 350 } },
+	{ "lim_goldlubbu", "The Golden Lubbu", "popmartt", 80000000, "👑", { Supply = 160 } },
 }, EXCLUSIVE)
 
 -- Grails: the ultra-rare bragging-rights tiers. Numbered, and only drop from cases that list

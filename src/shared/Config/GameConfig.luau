@@ -50,19 +50,35 @@ local GameConfig = {
 	Luck = {
 		PassMult = 2,
 		MutationPassMult = 2,
-		FullGain = 0.75,
-		Softness = 0.5,
-		BoostFullGain = 2,
-		BoostSoftness = 1,
+		FullGain = 0.4,
+		Softness = 0.3,
+		BoostFullGain = 1.2,
+		BoostSoftness = 0.6,
 	},
 
 	-- Luck upgrades bought with cash (the long-term cash sink). No max level: each level
-	-- multiplies item luck by PerLevel (level 10 = 2.6x, 20 = 6.7x, 30 = 17x, 40 = 45x), and
-	-- level L -> L+1 costs BasePrice * PriceGrowth ^ L (level 20 ~$4.9B, level 30 ~$3T).
+	-- multiplies item luck by PerLevel (level 10 = 1.63x, 20 = 2.65x), and level L -> L+1
+	-- costs BasePrice * PriceGrowth ^ L. Levels reset on rebirth.
 	LuckUpgrades = {
 		BasePrice = 25000,
 		PriceGrowth = 1.9,
-		PerLevel = 1.1,
+		PerLevel = 1.05,
+	},
+
+	--[[
+		Rebirth: resets cash (back to StartingCash), luck levels and every item pulled with
+		cash. Keeps exclusives (Robux case items and grails), keys, showcase slots, passes,
+		personal Robux luck and stats. Each rebirth permanently multiplies item luck by
+		LuckMult (compounding: 10 rebirths = x2.59) and adds SellBonus to sell value and
+		showcase income (10 rebirths = +150%).
+		Rebirth N+1 needs BaseCost * CostGrowth ^ N * CostRamp ^ (N(N-1)/2) cash in hand.
+	]]
+	Rebirth = {
+		LuckMult = 1.1,
+		SellBonus = 0.15,
+		BaseCost = 500000,
+		CostGrowth = 3.5,
+		CostRamp = 1.12,
 	},
 
 	-- The luck bar at the bottom of the screen: every item opened adds 1. When it reaches
@@ -76,16 +92,35 @@ local GameConfig = {
 		Admins = {} :: { number },
 	},
 
-	-- Client spin timings in seconds. FastMultiplier applies with the Fast Open pass.
+	-- Live pull feed (bottom right). Shows pulls of rarity Fx >= MinFx (2 = Epic and up),
+	-- anything from behind the gem, and mutations of Tier >= MinMutationTier. Visible cards
+	-- at once, and how long a card stays before fading.
+	Feed = {
+		MinFx = 2,
+		MinMutationTier = 3,
+		MaxPerOpen = 3,
+		Visible = 3,
+		Lifetime = 25,
+	},
+
+	-- Client spin timings in seconds.
+	--
+	-- Reels move like a slot machine: every reel blasts along at CellsPerSecond for Cruise
+	-- seconds, then brakes over Decel seconds. With several reels, each one brakes Stagger
+	-- seconds after the previous one, so they stop one at a time. GemCruise / GemDecel are the
+	-- re-spin after a gem. FastMultiplier scales every time with the 2x Spin Speed pass.
 	Spin = {
-		Duration = 5.0,
-		Stagger = 0.22,
+		CellsPerSecond = 24,
+		Cruise = 1.1,
+		Decel = 2.4,
+		Stagger = 0.75,
 		GemHold = 1.6,
-		GemSpinDuration = 3.6,
+		GemCruise = 0.5,
+		GemDecel = 2.6,
 		RevealTime = 0.9,
 		MutationTime = 1.4,
 		AutoOpenDelay = 1.0,
-		FastMultiplier = 0.45,
+		FastMultiplier = 0.5,
 	},
 
 	-- Themed cases: automatic odds and gem.

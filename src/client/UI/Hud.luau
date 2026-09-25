@@ -14,6 +14,7 @@ local DevTools = require(script.Parent.DevTools)
 local Inventory = require(script.Parent.Inventory)
 local Kit = require(script.Parent.Kit)
 local Luck = require(script.Parent.Luck)
+local Rebirth = require(script.Parent.Rebirth)
 local LuckHud = require(script.Parent.LuckHud)
 local Root = require(script.Parent.Root)
 local Spinner = require(script.Parent.Spinner)
@@ -36,7 +37,7 @@ local cashTween: Tween? = nil
 local function sideButton(parent: Instance, order: number, icon: string, text: string, onClick: () -> ()): TextButton
 	local button = Kit.button({
 		LayoutOrder = order,
-		Size = UDim2.fromOffset(86, 86),
+		Size = UDim2.fromOffset(78, 78),
 		Text = "",
 		BackgroundColor3 = Colors.Panel,
 		Parent = parent,
@@ -107,7 +108,7 @@ function Hud.start()
 	local side = Kit.new("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 14, 0.5, 0),
-		Size = UDim2.fromOffset(86, 590),
+		Size = UDim2.fromOffset(86, 640),
 		BackgroundTransparency = 1,
 		Parent = layer,
 	}, { Kit.list(Enum.FillDirection.Vertical, 10, Enum.HorizontalAlignment.Left, Enum.VerticalAlignment.Center) })
@@ -123,8 +124,11 @@ function Hud.start()
 	sideButton(side, 4, "🍀", "Luck", function()
 		Luck.open()
 	end)
-	local freeButton = sideButton(side, 5, "🎁", "", claimFree)
-	local devButton = sideButton(side, 6, "🛠️", "Dev", function()
+	sideButton(side, 5, "🔁", "Rebirth", function()
+		Rebirth.open()
+	end)
+	local freeButton = sideButton(side, 6, "🎁", "", claimFree)
+	local devButton = sideButton(side, 7, "🛠️", "Dev", function()
 		DevTools.open()
 	end)
 	devButton.Visible = State.Debug

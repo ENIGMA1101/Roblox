@@ -92,7 +92,7 @@ local function sellAllPreview(): (number, number)
 			count += 1
 		end
 	end
-	return total, count
+	return math.floor(total * State.sellMult() + 0.5), count
 end
 
 local function clearGrid(frame: ScrollingFrame)
@@ -189,17 +189,22 @@ local function renderDetails()
 	button(1, if owned.L then "🔓 Unlock" else "🔒 Lock", Colors.PanelLighter, function()
 		Actions.setLocked(id, not owned.L)
 	end)
-	button(2, if owned.L then "Locked" else `Sell for {Format.cash(value)}`, Color3.fromRGB(34, 120, 74), function()
-		if owned.L then
-			Toast.show("Unlock it first.", "bad")
-			return
+	button(
+		2,
+		if owned.L then "Locked" else `Sell for {Format.cash(value * State.sellMult())}`,
+		Color3.fromRGB(34, 120, 74),
+		function()
+			if owned.L then
+				Toast.show("Unlock it first.", "bad")
+				return
+			end
+			local result = Actions.sell({ id })
+			if result.ok and result.Count > 0 then
+				Toast.show(`Sold for {Format.cash(result.Total)}`, "good")
+				selectedId = nil
+			end
 		end
-		local result = Actions.sell({ id })
-		if result.ok and result.Count > 0 then
-			Toast.show(`Sold for {Format.cash(result.Total)}`, "good")
-			selectedId = nil
-		end
-	end)
+	)
 end
 
 -- Items tab ------------------------------------------------------------------------------------

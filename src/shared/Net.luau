@@ -12,12 +12,14 @@
 		ShowcaseBest()                  fill the showcase with the most valuable items
 		BuySlot()                       buy the next showcase slot
 		BuyLuck()                       buy the next luck upgrade level
+		Rebirth()                       reset for permanent luck and sell/income bonuses
 		Debug(action, arg)              developer tools (Studio / admins only)
 
 	Events (server -> client):
 		Sync(kind, payload)             state changes, see server/Services/PlayerState
 		Notify(text, kind)              toast message
 		PaidOpen(caseId, response)      a Robux case purchase was opened (results to animate)
+		Feed(entries)                   notable pulls anyone in the server just made (live feed)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,9 +36,10 @@ local FUNCTIONS = {
 	"ShowcaseBest",
 	"BuySlot",
 	"BuyLuck",
+	"Rebirth",
 	"Debug",
 }
-local EVENTS = { "Sync", "Notify", "PaidOpen" }
+local EVENTS = { "Sync", "Notify", "PaidOpen", "Feed" }
 
 local Net = {}
 

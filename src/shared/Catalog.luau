@@ -539,15 +539,22 @@ function Catalog.upgradeLuck(level: number): number
 end
 
 --[[
-	Permanent luck. Item luck = upgrades x Luck pass x personal Robux stack (they multiply).
-	Mutation luck comes only from the Mutation Luck pass; item luck never touches mutations.
+	Permanent luck. Item luck = upgrades x rebirths x Luck pass x personal Robux stack (they
+	multiply). Mutation luck comes only from the Mutation Luck pass; item luck never touches
+	mutations.
 ]]
-function Catalog.luckFor(level: number, hasPass: boolean, personalBuys: number?, hasMutationPass: boolean?): Luck
+function Catalog.luckFor(
+	level: number,
+	hasPass: boolean,
+	personalBuys: number?,
+	hasMutationPass: boolean?,
+	rebirths: number?
+): Luck
 	local config = GameConfig.Luck
 	return {
-		Item = Catalog.upgradeLuck(level) * (if hasPass then config.PassMult else 1) * Catalog.personalLuckMult(
-			personalBuys or 0
-		),
+		Item = Catalog.upgradeLuck(level) * Catalog.rebirthLuck(rebirths or 0) * (if hasPass
+			then config.PassMult
+			else 1) * Catalog.personalLuckMult(personalBuys or 0),
 		Mutation = if hasMutationPass then config.MutationPassMult else 1,
 	}
 end
@@ -566,12 +573,36 @@ function Catalog.luckUpgradePrice(level: number): number
 	return math.floor(upgrades.BasePrice * upgrades.PriceGrowth ^ level + 0.5)
 end
 
--- Personal luck stack: 1x with no purchases, then 2x, 4x, 6x, ...
+-- Personal luck stack: 1x with no purchases, then 1.5x, 2x, 2.5x, ...
 function Catalog.personalLuckMult(buys: number): number
-	if buys <= 0 then
-		return 1
-	end
-	return buys * Monetization.PersonalLuck.PerPurchase
+	return 1 + math.max(buys, 0) * Monetization.PersonalLuck.PerPurchase
+end
+
+-- Rebirth ---------------------------------------------------------------------------------------
+
+-- Permanent item luck from rebirths (compounding).
+function Catalog.rebirthLuck(rebirths: number): number
+	return GameConfig.Rebirth.LuckMult ^ math.max(rebirths, 0)
+end
+
+-- Multiplier on sell value and showcase income from rebirths.
+function Catalog.rebirthSellMult(rebirths: number): number
+	return 1 + GameConfig.Rebirth.SellBonus * math.max(rebirths, 0)
+end
+
+-- Cash needed in hand for the next rebirth after `rebirths` rebirths.
+function Catalog.rebirthCost(rebirths: number): number
+	local config = GameConfig.Rebirth
+	local n = math.max(rebirths, 0)
+	-- The growth rate itself climbs by CostRamp each rebirth, so later rebirths stay a chase
+	-- even as rebirth bonuses stack up.
+	return math.floor(config.BaseCost * config.CostGrowth ^ n * config.CostRamp ^ (n * (n - 1) / 2) + 0.5)
+end
+
+-- Items that survive a rebirth: exclusives (Robux case items and grails).
+function Catalog.keptOnRebirth(owned: { I: string }): boolean
+	local item = Catalog.ItemById[owned.I]
+	return item ~= nil and item.Exclusive
 end
 
 -- Robux price shown for the next personal luck purchase (after `buys` purchases), or nil if

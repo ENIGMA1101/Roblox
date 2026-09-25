@@ -32,6 +32,7 @@ export type Data = {
 	NextId: number,
 	ShowcaseSlots: number,
 	LuckLevel: number,
+	Rebirths: number,
 	PersonalLuck: number, -- personal Robux luck purchases
 	LuckBar: number, -- items opened toward the next 10x luck bar
 	Keys: { [string]: number },
@@ -67,6 +68,7 @@ local function template(): Data
 		NextId = 1,
 		ShowcaseSlots = GameConfig.Showcase.BaseSlots,
 		LuckLevel = 0,
+		Rebirths = 0,
 		PersonalLuck = 0,
 		LuckBar = 0,
 		Keys = {},

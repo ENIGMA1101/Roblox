@@ -82,6 +82,14 @@ function Actions.buyLuck(): Result
 	return result
 end
 
+function Actions.rebirth(): Result
+	local result = call("Rebirth")
+	if result.ok then
+		Sound.play("Purchase")
+	end
+	return result
+end
+
 function Actions.debug(action: string, arg: any?): Result
 	return call("Debug", action, arg)
 end
@@ -97,6 +105,21 @@ local function prompt(productId: number, what: string): boolean
 	end
 	MarketplaceService:PromptProductPurchase(Players.LocalPlayer, productId)
 	return true
+end
+
+-- Prompts a gamepass by its Monetization key.
+function Actions.buyPass(key: string): boolean
+	for _, pass in Monetization.Passes do
+		if pass.Key == key then
+			if pass.PassId == 0 then
+				Toast.show(`{pass.Name} isn't on sale yet (no PassId set).`, "bad")
+				return false
+			end
+			MarketplaceService:PromptGamePassPurchase(Players.LocalPlayer, pass.PassId)
+			return true
+		end
+	end
+	return false
 end
 
 -- Prompts the next step of the personal luck stack (after `buys` purchases).

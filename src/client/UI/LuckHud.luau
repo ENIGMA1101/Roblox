@@ -313,7 +313,7 @@ function LuckHud.start()
 		if kind == "ServerLuck" or kind == "State" then
 			refreshServer()
 		end
-		if kind == "Luck" or kind == "Passes" then
+		if kind == "Luck" or kind == "Passes" or kind == "Rebirths" then
 			refreshTotal()
 		end
 	end)

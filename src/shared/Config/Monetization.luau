@@ -43,9 +43,9 @@ local Monetization = {
 			PassId = 0,
 		},
 		{
-			Key = "FastOpen",
-			Name = "Fast Open",
-			Description = "Spins play more than twice as fast.",
+			Key = "SpinSpeed",
+			Name = "2x Spin Speed",
+			Description = "Every spin plays twice as fast. Toggle it on the spin screen.",
 			Icon = "⚡",
 			PassId = 0,
 		},
@@ -81,16 +81,17 @@ local Monetization = {
 	},
 
 	--[[
-		Personal luck stack (the icon on the right). Permanent. The first purchase gives 2x luck,
-		each one after adds +PerPurchase (2x, 4x, 6x, ...). Roblox products have fixed prices, so
-		each step is its own developer product: step N should cost BasePrice * PriceGrowth^(N-1)
-		Robux (5, 8, 11, 17, 25, 38, 57, 85, 128, 192, ...). List the ids in order; the number of
-		ids is how many times it can be bought.
+		Personal luck stack (the icon on the right). Permanent and kept through rebirths. Each
+		purchase adds +PerPurchase to a 1x base (1.5x, 2x, 2.5x, 3x, ...), multiplying with all
+		other luck. Roblox products have fixed prices, so each step is its own developer
+		product: step N should cost BasePrice * PriceGrowth^(N-1) Robux (5, 6, 8, 10, 12, 15,
+		19, 24, 30, 37, 47, 58, 73, 91, 114, 142, 178, 222, 278, 347). List the ids in order;
+		the number of ids is how many times it can be bought.
 	]]
 	PersonalLuck = {
-		PerPurchase = 2,
+		PerPurchase = 0.5,
 		BasePrice = 5,
-		PriceGrowth = 1.5,
+		PriceGrowth = 1.25,
 		ProductIds = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 	},
 

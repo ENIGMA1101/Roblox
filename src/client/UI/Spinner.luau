@@ -49,8 +49,6 @@ local RAINBOW = {
 	Color3.fromRGB(255, 96, 96),
 }
 
-local MAIN_TARGET = 44 -- index of the landing cell on the first spin
-local GEM_TARGET = 30 -- index of the landing cell on the gem re-spin
 local START_INDEX = 2
 local CELLS_AFTER = 4
 local MOSAIC_GRID = 9
@@ -122,6 +120,7 @@ local autoButton: TextButton
 local screenFlash: Frame
 local leftArrow: TextLabel
 local rightArrow: TextLabel
+local speedButton: TextButton
 
 local choice: string? = nil
 
@@ -134,10 +133,6 @@ local function animate(duration: number, step: (number) -> ())
 		step(math.min(elapsed / duration, 1))
 	end
 	step(1)
-end
-
-local function easeOutQuart(x: number): number
-	return 1 - (1 - x) ^ 4
 end
 
 local function easeInOutQuad(x: number): number
@@ -190,8 +185,11 @@ local function cycleColor(colors: { Color3 }): () -> Color3
 	end
 end
 
+-- 2x Spin Speed pass: on by default for owners, toggled from the spin screen.
+local fastWanted = true
+
 local function speedFactor(): number
-	return if State.hasPass("FastOpen") then SpinConfig.FastMultiplier else 1
+	return if State.hasPass("SpinSpeed") and fastWanted then SpinConfig.FastMultiplier else 1
 end
 
 -- Column construction --------------------------------------------------------------------------
@@ -644,13 +642,37 @@ local function fillStrip(column: Column, case: Catalog.Case, target: Entry, targ
 	setScroll(column, START_INDEX * column.CellSize)
 end
 
-local function spinTo(column: Column, targetIndex: number, duration: number)
+-- How many cells a reel travels: full speed for `cruise` seconds, then an ease-out over
+-- `decel` seconds that starts at that same speed.
+local function travelCells(cruise: number, decel: number, speed: number): number
+	local cellsPerSecond = SpinConfig.CellsPerSecond / speed
+	return math.max(math.floor(cellsPerSecond * (cruise + decel / 3) + 0.5), 12)
+end
+
+local function easeOutCubic(x: number): number
+	return 1 - (1 - x) ^ 3
+end
+
+--[[
+	Slot-machine motion: the reel blasts along at full speed for `cruise` seconds, then brakes
+	over `decel` seconds (ease-out cubic, whose starting speed matches the cruise speed, so there
+	is no jolt) and clicks onto the centre line.
+]]
+local function spinTo(column: Column, targetIndex: number, cruise: number, decel: number)
 	local cellHeight = column.CellSize
 	local startScroll = START_INDEX * cellHeight
 	local endScroll = targetIndex * cellHeight + rng:NextNumber(-0.36, 0.36) * cellHeight
+	local distance = endScroll - startScroll
+	local velocity = distance / (cruise + decel / 3)
+	local cruiseDistance = velocity * cruise
 	local lastIndex = START_INDEX
-	animate(duration, function(alpha)
-		local scroll = startScroll + (endScroll - startScroll) * easeOutQuart(alpha)
+	local total = cruise + decel
+	animate(total, function(alpha)
+		local t = alpha * total
+		local scroll = startScroll
+			+ if t < cruise
+				then velocity * t
+				else cruiseDistance + (distance - cruiseDistance) * easeOutCubic((t - cruise) / decel)
 		setScroll(column, scroll)
 		local index = math.floor(scroll / cellHeight + 0.5)
 		if index ~= lastIndex then
@@ -994,18 +1016,25 @@ end
 
 local function runColumn(column: Column, case: Catalog.Case, result: Result, index: number, speed: number)
 	local item: Entry = { Gem = false, I = result.I, B = result.B }
-	local duration = (SpinConfig.Duration + SpinConfig.Stagger * (index - 1)) * speed
+	-- Every reel cruises together; each one after the first brakes Stagger seconds later, so
+	-- they stop one at a time like a slot machine.
+	local cruise = (SpinConfig.Cruise + SpinConfig.Stagger * (index - 1)) * speed
+	local decel = SpinConfig.Decel * speed
+	local target = START_INDEX + travelCells(cruise, decel, speed)
 
-	fillStrip(column, case, if result.Gem then { Gem = true } else item, MAIN_TARGET, false)
-	spinTo(column, MAIN_TARGET, duration)
-	local landed = MAIN_TARGET
+	fillStrip(column, case, if result.Gem then { Gem = true } else item, target, false)
+	spinTo(column, target, cruise, decel)
+	local landed = target
 
 	if result.Gem then
-		showHero(column, { Gem = true }, MAIN_TARGET)
+		showHero(column, { Gem = true }, target)
 		gemSequence(column, speed)
-		fillStrip(column, case, item, GEM_TARGET, true)
-		spinTo(column, GEM_TARGET, SpinConfig.GemSpinDuration * speed)
-		landed = GEM_TARGET
+		local gemCruise = SpinConfig.GemCruise * speed
+		local gemDecel = SpinConfig.GemDecel * speed
+		local gemTarget = START_INDEX + travelCells(gemCruise, gemDecel, speed)
+		fillStrip(column, case, item, gemTarget, true)
+		spinTo(column, gemTarget, gemCruise, gemDecel)
+		landed = gemTarget
 	end
 
 	showHero(column, item, landed)
@@ -1101,6 +1130,23 @@ local function build()
 		Size = UDim2.fromOffset(30, 30),
 		Parent = overlay,
 	})
+
+	-- 2x Spin Speed: a toggle for owners, a shortcut to buy it for everyone else.
+	speedButton = Kit.button({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -24, 0, 30),
+		Size = UDim2.fromOffset(190, 44),
+		TextSize = 17,
+		Parent = overlay,
+	}, function()
+		if State.hasPass("SpinSpeed") then
+			fastWanted = not fastWanted
+			Spinner.refreshSpeedButton()
+		else
+			Actions.buyPass("SpinSpeed")
+		end
+	end)
+	Spinner.refreshSpeedButton()
 
 	footer = Kit.new("Frame", {
 		Name = "Footer",
@@ -1360,7 +1406,7 @@ function Spinner.run(case: Catalog.Case, count: number, mode: string?)
 			end
 		end
 		totalLabel.Text = `Total  {Format.cashFull(total)}`
-		sellButton.Text = `Sell all ({Format.cash(total)})`
+		sellButton.Text = `Sell all ({Format.cash(total * State.sellMult())})`
 		sellButton.Active = true
 		sellButton.TextTransparency = 0
 		autoButton.Visible = State.hasPass("AutoOpen")
@@ -1406,12 +1452,27 @@ function Spinner.run(case: Catalog.Case, count: number, mode: string?)
 	busy = false
 end
 
+function Spinner.refreshSpeedButton()
+	if State.hasPass("SpinSpeed") then
+		speedButton.Text = if fastWanted then "⏩ 2x Speed: ON" else "⏩ 2x Speed: OFF"
+		Kit.setButtonColor(speedButton, if fastWanted then Colors.Accent else Colors.PanelLighter)
+	else
+		speedButton.Text = "⏩ Get 2x Spin Speed"
+		Kit.setButtonColor(speedButton, Color3.fromRGB(34, 140, 74))
+	end
+end
+
 function Spinner.isBusy(): boolean
 	return busy
 end
 
 function Spinner.start()
 	build()
+	State.Changed:Connect(function(kind)
+		if kind == "Passes" or kind == "State" then
+			Spinner.refreshSpeedButton()
+		end
+	end)
 end
 
 return Spinner

@@ -213,7 +213,8 @@ function Luck.start()
 		Size = UDim2.new(1, 0, 0, 120),
 		Text = "Every luck source multiplies together. Luck boosts rare items the most: at 100x luck a case's "
 			.. "top item is close to 100x more likely, while commons barely change. Each case has diminishing "
-			.. "returns so luck always helps but can't break it. Grails and mutations are never affected.",
+			.. "returns so luck always helps but can't break it. Grails and mutations are never affected. "
+			.. "Levels reset when you rebirth.",
 		TextSize = 13,
 		TextWrapped = true,
 		TextTruncate = Enum.TextTruncate.None,
@@ -257,6 +258,7 @@ function Luck.start()
 			refreshButton()
 		elseif
 			kind == "Luck"
+			or kind == "Rebirths"
 			or kind == "Passes"
 			or kind == "State"
 			or kind == "PersonalLuck"

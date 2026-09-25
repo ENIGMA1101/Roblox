@@ -213,6 +213,12 @@ function DevTools.start()
 	button(boostRow, 5, "Reset personal luck", nil, function()
 		Actions.debug("PersonalLuck", 0)
 	end)
+	button(boostRow, 6, "Rebirths +1 (no reset)", nil, function()
+		Actions.debug("SetRebirths", State.Rebirths + 1)
+	end)
+	button(boostRow, 7, "Reset rebirths", nil, function()
+		Actions.debug("SetRebirths", 0)
+	end)
 
 	Kit.label({
 		LayoutOrder = 12,
