@@ -65,6 +65,28 @@ local Monetization = {
 		},
 	} :: { Pass },
 
+	-- Server luck: multiplies everyone's luck in the server for Minutes. Buying a boost that's
+	-- already running adds Minutes to it. When several run, the highest multiplier applies.
+	ServerLuck = {
+		{ Key = "x2", Name = "2x Server Luck", Mult = 2, Minutes = 15, Robux = 33, ProductId = 0 },
+		{ Key = "x3", Name = "3x Server Luck", Mult = 3, Minutes = 15, Robux = 99, ProductId = 0 },
+		{ Key = "x10", Name = "10x Server Luck", Mult = 10, Minutes = 15, Robux = 199, ProductId = 0 },
+	},
+
+	--[[
+		Personal luck stack (the icon on the right). Permanent. The first purchase gives 2x luck,
+		each one after adds +PerPurchase (2x, 4x, 6x, ...). Roblox products have fixed prices, so
+		each step is its own developer product: step N should cost BasePrice * PriceGrowth^(N-1)
+		Robux (5, 8, 11, 17, 25, 38, 57, 85, 128, 192, ...). List the ids in order; the number of
+		ids is how many times it can be bought.
+	]]
+	PersonalLuck = {
+		PerPurchase = 2,
+		BasePrice = 5,
+		PriceGrowth = 1.5,
+		ProductIds = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+	},
+
 	CashPacks = {
 		{ Name = "Pocket Change", Icon = "💵", ProductId = 0, Cash = 25000, IncomeMinutes = 15 },
 		{ Name = "Briefcase", Icon = "💼", ProductId = 0, Cash = 150000, IncomeMinutes = 60 },

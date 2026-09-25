@@ -28,8 +28,12 @@ end
 
 -- 1. Expected value per case ------------------------------------------------------------------
 
-local maxLuck = Catalog.luckFor(GameConfig.LuckUpgrades.MaxLevel, false)
-local maxLuckPass = Catalog.luckFor(GameConfig.LuckUpgrades.MaxLevel, true)
+-- "Max luck" columns use a late-game reference: level 20 and 4 personal luck purchases (8x).
+local REFERENCE_LEVEL = 20
+local REFERENCE_PERSONAL = 4
+local maxLuck = Catalog.luckFor(REFERENCE_LEVEL, false, REFERENCE_PERSONAL)
+local maxLuckPass = Catalog.luckFor(REFERENCE_LEVEL, true, REFERENCE_PERSONAL)
+local boosted = Catalog.boostLuck(maxLuckPass, 10 * GameConfig.LuckBar.Mult)
 
 local function pct(value: number?): string
 	return if value then string.format("%.1f%%", value * 100) else "-"
@@ -46,6 +50,7 @@ print(
 		.. lpad("RTP pass", 10)
 		.. lpad("max luck", 10)
 		.. lpad("max+pass", 10)
+		.. lpad("x100 boost", 11)
 		.. lpad("gem", 14)
 		.. lpad("gem EV", 8)
 		.. lpad("top item", 11)
@@ -71,6 +76,7 @@ for _, case in Catalog.Cases do
 			.. lpad(pct(Catalog.rtp(case, GameConfig.LuckPass)), 10)
 			.. lpad(pct(Catalog.rtp(case, maxLuck)), 10)
 			.. lpad(pct(Catalog.rtp(case, maxLuckPass)), 10)
+			.. lpad(pct(Catalog.rtp(case, boosted)), 11)
 			.. lpad(if gem > 0 then Format.oneIn(gem) else "no gem", 14)
 			.. lpad(string.format("%.0f%%", gemEv / ev * 100), 8)
 			.. lpad(Format.short(top), 11)

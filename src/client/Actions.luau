@@ -86,6 +86,33 @@ function Actions.debug(action: string, arg: any?): Result
 	return call("Debug", action, arg)
 end
 
+-- Luck products ---------------------------------------------------------------------------------
+
+local Monetization = require(Shared.Config.Monetization)
+
+local function prompt(productId: number, what: string): boolean
+	if productId == 0 then
+		Toast.show(`{what} isn't on sale yet (no ProductId set).`, "bad")
+		return false
+	end
+	MarketplaceService:PromptProductPurchase(Players.LocalPlayer, productId)
+	return true
+end
+
+-- Prompts the next step of the personal luck stack (after `buys` purchases).
+function Actions.buyPersonalLuck(buys: number): boolean
+	local productId = Monetization.PersonalLuck.ProductIds[buys + 1]
+	if not productId then
+		Toast.show("You've bought every personal luck step!", "gold")
+		return false
+	end
+	return prompt(productId, "Personal luck")
+end
+
+function Actions.buyServerLuck(boost: { Name: string, ProductId: number }): boolean
+	return prompt(boost.ProductId, boost.Name)
+end
+
 -- Robux cases ----------------------------------------------------------------------------------
 
 local robuxPrices: { [number]: number } = {}

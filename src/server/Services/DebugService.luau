@@ -12,6 +12,9 @@
 		"FreeCaseReady"
 		"OpenPaid", caseId                   open a Robux case without paying
 		"SetLuck", level
+		"FillBar"                            fill the luck bar
+		"ServerLuck", key                    start a server luck boost (x2 / x3 / x10) for 2 minutes
+		"PersonalLuck", count                set personal luck purchases
 
 	Forced items are real items saved to the player's data.
 ]]
@@ -33,6 +36,7 @@ local DebugService = {}
 
 -- Set by CaseService (which depends on this module) to open a Robux case for free.
 DebugService.openPaid = nil :: ((Player, string) -> { [string]: any })?
+DebugService.activateServerLuck = nil :: ((Player, string) -> ())?
 
 local forces: { [Player]: Roller.Force } = {}
 
@@ -88,8 +92,23 @@ local function handle(player: Player, data: Data, action: any, arg: any)
 		if type(arg) ~= "number" or arg ~= arg then
 			return { ok = false, error = "Bad request." }
 		end
-		data.LuckLevel = math.clamp(math.floor(arg), 0, GameConfig.LuckUpgrades.MaxLevel)
+		data.LuckLevel = math.clamp(math.floor(arg), 0, 1000)
 		PlayerState.sync(player, "Luck", data.LuckLevel)
+	elseif action == "FillBar" then
+		data.LuckBar = GameConfig.LuckBar.RollsToFill
+		PlayerState.sync(player, "LuckBar", data.LuckBar)
+	elseif action == "ServerLuck" then
+		local activate = DebugService.activateServerLuck
+		if type(arg) ~= "string" or not activate then
+			return { ok = false, error = "Bad request." }
+		end
+		activate(player, arg)
+	elseif action == "PersonalLuck" then
+		if type(arg) ~= "number" or arg ~= arg then
+			return { ok = false, error = "Bad request." }
+		end
+		data.PersonalLuck = math.clamp(math.floor(arg), 0, 1000)
+		PlayerState.sync(player, "PersonalLuck", data.PersonalLuck)
 	else
 		return { ok = false, error = "Unknown action." }
 	end

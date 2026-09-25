@@ -44,21 +44,25 @@ local GameConfig = {
 	-- Luck raises a case's gem odds only until the case would return MaxRTP of its price on
 	-- average, but always allows at least MinGain x the case's normal value. Without this, cases
 	-- that keep most of their value behind the gem would pay back far more than they cost.
-	LuckLimits = { MaxRTP = 0.92, MinGain = 1.15 },
+	-- Temporary boosts (server luck, a full luck bar) use the looser Boost limits, so a 10x
+	-- moment really pays off without turning a case into an unlimited money printer.
+	-- Both are measured on item value before mutations; mutation luck can add up to ~24% more.
+	LuckLimits = { MaxRTP = 0.85, MinGain = 1.15, BoostMaxRTP = 1.3, BoostMinGain = 1.6 },
 
-	-- Luck upgrades bought with cash (the long-term cash sink). Each level adds GemPerLevel to
-	-- the gem-rarity multiplier and MutationPerLevel to the mutation multiplier. They stack
-	-- multiplicatively with the Luck pass. Level L -> L+1 costs BasePrice * PriceGrowth ^ L.
-	-- Defaults: level 20 = x1.5 gem pulls and x3 mutations; the last level costs ~$4.9B. Gem luck is
-	-- kept modest so the top cases stay under 100% return even at max luck with the pass
-	-- (check with tools/balance.py).
+	-- Luck upgrades bought with cash (the long-term cash sink). No max level: each level adds
+	-- GemPerLevel to the gem multiplier and MutationPerLevel to the mutation multiplier, and
+	-- level L -> L+1 costs BasePrice * PriceGrowth ^ L, so prices explode (level 20 ~$4.9B,
+	-- level 30 ~$3T, level 40 ~$1.9Q). Gem luck still obeys LuckLimits per case.
 	LuckUpgrades = {
-		MaxLevel = 20,
 		BasePrice = 25000,
 		PriceGrowth = 1.9,
 		GemPerLevel = 0.025,
 		MutationPerLevel = 0.1,
 	},
+
+	-- The luck bar at the bottom of the screen: every item opened adds 1. When it reaches
+	-- RollsToFill, the player's next open gets Mult x luck (all its reels), then it empties.
+	LuckBar = { RollsToFill = 30, Mult = 10 },
 
 	-- Developer tools (force the gem, force mutations, free cash). Always available in Studio.
 	-- In live servers only for the UserIds listed in Admins. Items made with it are real.

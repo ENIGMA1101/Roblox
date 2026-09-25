@@ -26,6 +26,7 @@ MODULES = [
     "Config/Mutations",
     "Config/Cases",
     "Config/GameConfig",
+    "Config/Monetization",
     "Catalog",
     "Roller",
     "Format",

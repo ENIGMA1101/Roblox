@@ -14,6 +14,7 @@ local BrandsConfig = require(Config.Brands)
 local MutationsConfig = require(Config.Mutations)
 local CasesConfig = require(Config.Cases)
 local GameConfig = require(Config.GameConfig)
+local Monetization = require(Config.Monetization)
 
 export type Rarity = RaritiesConfig.Rarity & { Order: number }
 export type Brand = BrandsConfig.Brand
@@ -50,6 +51,7 @@ export type Case = {
 	Limited: boolean, -- every item has a capped supply
 	Entries: { Entry }, -- base odds, most likely first
 	MaxGemShare: number, -- luck can't push the total gem chance past this (see LuckLimits)
+	BoostMaxGemShare: number, -- the same limit while a temporary boost is active
 }
 
 -- A saved item. Short keys keep the DataStore record small.
@@ -66,7 +68,8 @@ export type Owned = {
 export type Odds = { Id: string, P: number }
 
 -- Gem multiplies the chance of a case's gem items, Mutation divides every mutation's OneIn.
-export type Luck = { Gem: number, Mutation: number }
+-- Boosted = a temporary boost (server luck / full luck bar) is included: looser gem cap.
+export type Luck = { Gem: number, Mutation: number, Boosted: boolean? }
 
 local Catalog = {}
 
@@ -179,12 +182,17 @@ function Catalog.mutationChance(mutation: Mutation, mutationLuck: number?): numb
 	return math.min(1, math.max(mutationLuck or 1, 1) / mutation.OneIn)
 end
 
--- Mutations rarest first, with their chance at this luck. With guaranteed = true the chances
--- are rescaled to add up to 1 (every item mutates; rarer mutations keep their relative odds).
+--[[
+	Mutations rarest first, with their chance at this luck. Each chance is luck / OneIn. Once
+	those add up past 1 (very high luck), or with guaranteed = true, they're rescaled to add up
+	to exactly 1: every item mutates and the mutations keep their relative odds, so luck can
+	never make a Crown Jewel as common as a Polished.
+]]
 function Catalog.mutationOdds(mutationLuck: number?, guaranteed: boolean?): { Odds }
+	local luck = math.max(mutationLuck or 1, 1)
 	local odds = {}
 	for _, mutation in Catalog.Mutations do
-		table.insert(odds, { Id = mutation.Id, P = Catalog.mutationChance(mutation, mutationLuck) })
+		table.insert(odds, { Id = mutation.Id, P = luck / mutation.OneIn })
 	end
 	table.sort(odds, function(a, b)
 		return a.P < b.P
@@ -414,19 +422,24 @@ local function buildCase(def: any): Case
 			plainEv += entry.P * value
 		end
 	end
-	local maxGemShare = 1
-	if gemSum > 0 and plainSum > 0 then
-		local limits = GameConfig.LuckLimits
+	local limits = GameConfig.LuckLimits
+	local function gemShareCap(maxRTP: number, minGain: number): number
+		if gemSum <= 0 or plainSum <= 0 then
+			return 1
+		end
 		local gemAvg, plainAvg = gemEv / gemSum, plainEv / plainSum
-		local cap = (gemEv + plainEv) * limits.MinGain
+		if gemAvg <= plainAvg then
+			return 1
+		end
+		-- Measured on item value before mutations (mutation luck adds at most ~+24% on top).
+		local cap = (gemEv + plainEv) * minGain
 		if not def.Paid then
-			local mutationMult = Catalog.expectedMutationMult(1, def.GuaranteedMutation)
-			cap = math.max(cap, limits.MaxRTP * def.Price / mutationMult)
+			cap = math.max(cap, maxRTP * def.Price)
 		end
-		if gemAvg > plainAvg then
-			maxGemShare = math.clamp((cap - plainAvg) / (gemAvg - plainAvg), gemSum, 1)
-		end
+		return math.clamp((cap - plainAvg) / (gemAvg - plainAvg), gemSum, 1)
 	end
+	local maxGemShare = gemShareCap(limits.MaxRTP, limits.MinGain)
+	local boostMaxGemShare = math.max(gemShareCap(limits.BoostMaxRTP, limits.BoostMinGain), maxGemShare)
 
 	return {
 		Id = def.Id,
@@ -443,6 +456,7 @@ local function buildCase(def: any): Case
 		Limited = limited,
 		Entries = entries,
 		MaxGemShare = maxGemShare,
+		BoostMaxGemShare = boostMaxGemShare,
 	}
 end
 
@@ -501,33 +515,58 @@ end
 
 -- Luck --------------------------------------------------------------------------------------
 
--- Combined luck from upgrade level and the Luck pass.
-function Catalog.luckFor(level: number, hasPass: boolean): Luck
+-- Permanent luck: upgrade level, the Luck pass and the personal Robux luck stack.
+function Catalog.luckFor(level: number, hasPass: boolean, personalBuys: number?): Luck
 	local upgrades = GameConfig.LuckUpgrades
-	local clamped = math.clamp(level, 0, upgrades.MaxLevel)
+	local clamped = math.max(level, 0)
 	local pass = if hasPass then GameConfig.LuckPass else Catalog.NoLuck
+	local personal = Catalog.personalLuckMult(personalBuys or 0)
 	return {
-		Gem = (1 + upgrades.GemPerLevel * clamped) * pass.Gem,
-		Mutation = (1 + upgrades.MutationPerLevel * clamped) * pass.Mutation,
+		Gem = (1 + upgrades.GemPerLevel * clamped) * pass.Gem * personal,
+		Mutation = (1 + upgrades.MutationPerLevel * clamped) * pass.Mutation * personal,
 	}
 end
 
--- Price to go from `level` to `level + 1`, or nil at max level.
-function Catalog.luckUpgradePrice(level: number): number?
+-- Adds a temporary multiplier (server luck, luck bar) on top of permanent luck.
+function Catalog.boostLuck(luck: Luck, mult: number): Luck
+	if mult <= 1 then
+		return luck
+	end
+	return { Gem = luck.Gem * mult, Mutation = luck.Mutation * mult, Boosted = true }
+end
+
+-- Price to go from `level` to `level + 1`. Never runs out; grows exponentially.
+function Catalog.luckUpgradePrice(level: number): number
 	local upgrades = GameConfig.LuckUpgrades
-	if level >= upgrades.MaxLevel then
+	return math.floor(upgrades.BasePrice * upgrades.PriceGrowth ^ level + 0.5)
+end
+
+-- Personal luck stack: 1x with no purchases, then 2x, 4x, 6x, ...
+function Catalog.personalLuckMult(buys: number): number
+	if buys <= 0 then
+		return 1
+	end
+	return buys * Monetization.PersonalLuck.PerPurchase
+end
+
+-- Robux price shown for the next personal luck purchase (after `buys` purchases), or nil if
+-- every step has been bought.
+function Catalog.personalLuckPrice(buys: number): number?
+	local config = Monetization.PersonalLuck
+	if buys >= #config.ProductIds then
 		return nil
 	end
-	return math.floor(upgrades.BasePrice * upgrades.PriceGrowth ^ level + 0.5)
+	return math.floor(config.BasePrice * config.PriceGrowth ^ buys + 0.5)
 end
 
 -- Odds ----------------------------------------------------------------------------------------
 
 --[[
 	A case's odds with gem luck applied and sold-out items removed. Gem items are multiplied
-	by gemLuck (up to the case's MaxGemShare); the non-gem items shrink proportionally.
+	by gemLuck (up to the case's MaxGemShare, or BoostMaxGemShare when boosted); the non-gem
+	items shrink proportionally.
 ]]
-function Catalog.caseOdds(case: Case, gemLuck: number?, soldOut: { [string]: boolean }?): { Entry }
+function Catalog.caseOdds(case: Case, gemLuck: number?, soldOut: { [string]: boolean }?, boosted: boolean?): { Entry }
 	local boost = math.max(gemLuck or 1, 1)
 	local gemSum, plainSum = 0, 0
 	local entries: { Entry } = {}
@@ -547,7 +586,8 @@ function Catalog.caseOdds(case: Case, gemLuck: number?, soldOut: { [string]: boo
 	end
 	gemSum /= total
 	plainSum /= total
-	local boostedGem = math.min(gemSum * boost, math.max(case.MaxGemShare, gemSum), 1)
+	local limit = if boosted then case.BoostMaxGemShare else case.MaxGemShare
+	local boostedGem = math.min(gemSum * boost, math.max(limit, gemSum), 1)
 	local gemScale = if gemSum > 0 then boostedGem / gemSum else 0
 	local plainScale = if plainSum > 0 then (1 - boostedGem) / plainSum else 0
 	if plainSum <= 0 then
@@ -560,9 +600,9 @@ function Catalog.caseOdds(case: Case, gemLuck: number?, soldOut: { [string]: boo
 end
 
 -- Chance per rarity (0..1) for display, lowest tier first.
-function Catalog.rarityOdds(case: Case, gemLuck: number?): { Odds }
+function Catalog.rarityOdds(case: Case, gemLuck: number?, boosted: boolean?): { Odds }
 	local byRarity: { [string]: number } = {}
-	for _, entry in Catalog.caseOdds(case, gemLuck) do
+	for _, entry in Catalog.caseOdds(case, gemLuck, nil, boosted) do
 		byRarity[entry.Item.Rarity] = (byRarity[entry.Item.Rarity] or 0) + entry.P
 	end
 	local odds = {}
@@ -585,9 +625,9 @@ function Catalog.isGem(case: Case, rarityId: string): boolean
 end
 
 -- Total chance (0..1) that a case lands on the gem at this gem luck.
-function Catalog.gemChance(case: Case, gemLuck: number?): number
+function Catalog.gemChance(case: Case, gemLuck: number?, boosted: boolean?): number
 	local chance = 0
-	for _, entry in Catalog.caseOdds(case, gemLuck) do
+	for _, entry in Catalog.caseOdds(case, gemLuck, nil, boosted) do
 		if entry.Gem then
 			chance += entry.P
 		end
@@ -599,7 +639,7 @@ end
 function Catalog.expectedValue(case: Case, luck: Luck?): number
 	local boost = luck or Catalog.NoLuck
 	local expected = 0
-	for _, entry in Catalog.caseOdds(case, boost.Gem) do
+	for _, entry in Catalog.caseOdds(case, boost.Gem, nil, boost.Boosted) do
 		expected += entry.P * Catalog.itemValue(entry.Item)
 	end
 	return expected * Catalog.expectedMutationMult(boost.Mutation, case.GuaranteedMutation)

@@ -24,7 +24,7 @@ function Toast.start()
 	stack = Kit.new("Frame", {
 		Name = "Toasts",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 96),
+		Position = UDim2.new(0.5, 0, 0, 136),
 		Size = UDim2.new(0, 520, 1, -120),
 		BackgroundTransparency = 1,
 		Parent = Root.layer("Toasts"),

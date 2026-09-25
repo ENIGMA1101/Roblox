@@ -11,6 +11,9 @@
 		"Income"   cash per second
 		"Slots"    showcase slot count
 		"Luck"     luck upgrade level
+		"PersonalLuck" personal Robux luck purchases
+		"LuckBar"  items opened toward the next 10x luck bar
+		"ServerLuck" { Mult, EndsAt, Boosts } server-wide timed luck
 		"Force"    developer overrides armed for the next open ({ Gem?, Mutation? })
 		"Serials"  copies issued so far per numbered item ({ [itemId] = count })
 		"FreeCase" unix time the free case is ready
@@ -67,10 +70,15 @@ function PlayerState.bind(name: string, handler: (Player, Data, ...any) -> { [st
 	end
 end
 
--- Upgrade level and the Luck pass combined. Used for every roll.
+-- Permanent luck (upgrade level, Luck pass, personal Robux stack). Temporary boosts are
+-- added on top by CaseService.
 function PlayerState.luck(player: Player): Catalog.Luck
 	local data = DataService.get(player)
-	return Catalog.luckFor(if data then data.LuckLevel else 0, Passes.has(player, "Luck"))
+	return Catalog.luckFor(
+		if data then data.LuckLevel else 0,
+		Passes.has(player, "Luck"),
+		if data then data.PersonalLuck else 0
+	)
 end
 
 function PlayerState.debugAllowed(player: Player): boolean
@@ -88,6 +96,8 @@ function PlayerState.snapshot(player: Player): { [string]: any }?
 		Items = data.Items,
 		ShowcaseSlots = data.ShowcaseSlots,
 		LuckLevel = data.LuckLevel,
+		PersonalLuck = data.PersonalLuck,
+		LuckBar = data.LuckBar,
 		Debug = PlayerState.debugAllowed(player),
 		Keys = data.Keys,
 		FreeCaseReadyAt = data.LastFreeCase + GameConfig.FreeCase.Cooldown,

@@ -21,6 +21,8 @@ local Monetization = require(Shared.Config.Monetization)
 local CaseService = require(script.Parent.CaseService)
 local DataService = require(script.Parent.DataService)
 local PlayerState = require(script.Parent.PlayerState)
+local ServerLuckService = require(script.Parent.ServerLuckService)
+local UpgradeService = require(script.Parent.UpgradeService)
 
 local MonetizationService = {}
 
@@ -96,6 +98,17 @@ function MonetizationService.start()
 				CaseService.openPaid(player, case)
 			end)
 		end
+	end
+
+	for _, boost in Monetization.ServerLuck do
+		register(boost.ProductId, function(player)
+			ServerLuckService.activate(boost, player)
+		end)
+	end
+
+	-- Every personal luck step grants one purchase, whichever step product was bought.
+	for _, productId in Monetization.PersonalLuck.ProductIds do
+		register(productId, UpgradeService.addPersonalLuck)
 	end
 
 	MarketplaceService.ProcessReceipt = processReceipt

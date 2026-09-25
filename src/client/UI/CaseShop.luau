@@ -196,7 +196,9 @@ local function renderList(force: boolean?)
 			Size = UDim2.new(1, -20, 0, 18),
 			Text = if keys > 0
 				then `🔑 {keys} key{if keys == 1 then "" else "s"}`
-				else `{#case.Entries} items  •  gem {Format.oneIn(Catalog.gemChance(case, State.luck().Gem))}`,
+				else `{#case.Entries} items  •  gem {Format.oneIn(
+					Catalog.gemChance(case, State.luck().Gem, State.luck().Boosted)
+				)}`,
 			TextSize = 14,
 			TextColor3 = if keys > 0 then Colors.Gold else Colors.SubText,
 			TextXAlignment = Enum.TextXAlignment.Center,
@@ -239,7 +241,7 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 		return order
 	end
 
-	local rarityOdds = Catalog.rarityOdds(case, luck.Gem)
+	local rarityOdds = Catalog.rarityOdds(case, luck.Gem, luck.Boosted)
 	sectionTitle(scroller, nextOrder(), "Rarity odds")
 	for i = #rarityOdds, 1, -1 do
 		local entry = rarityOdds[i]
@@ -277,7 +279,7 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 			soldOutItems[entry.Item.Id] = true
 		end
 	end
-	local entries = Catalog.caseOdds(case, luck.Gem, soldOutItems)
+	local entries = Catalog.caseOdds(case, luck.Gem, soldOutItems, luck.Boosted)
 	table.sort(entries, function(a, b)
 		return a.Item.Value > b.Item.Value
 	end)
@@ -412,10 +414,12 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 			"Limited: each item has a fixed supply. Sold-out items are removed and the rest share their odds."
 		)
 	end
-	if State.LuckLevel > 0 or State.hasPass("Luck") then
+	if luck.Gem > 1 or luck.Mutation > 1 then
 		table.insert(
 			notes,
-			`Odds include your luck (level {State.LuckLevel}{if State.hasPass("Luck") then " + 2x Luck pass" else ""}).`
+			`Odds include your luck: gems {Format.mult(luck.Gem)}, mutations {Format.mult(luck.Mutation)}`
+				.. (if State.boostMult() > 1 then ` (incl. a {Format.mult(State.boostMult())} boost right now)` else "")
+				.. ". Each case caps how far luck can raise its gem odds."
 		)
 	end
 	Kit.label({
@@ -768,6 +772,12 @@ function CaseShop.start()
 		end
 		if kind == "Passes" or kind == "State" or kind == "Luck" then
 			-- Luck changes the odds list itself.
+			if selected then
+				renderPreview()
+			else
+				renderList(true)
+			end
+		elseif kind == "PersonalLuck" or kind == "LuckBar" or kind == "ServerLuck" then
 			if selected then
 				renderPreview()
 			else

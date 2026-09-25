@@ -1079,6 +1079,7 @@ function Spinner.run(case: Catalog.Case, count: number, mode: string?)
 		clearBoard(columns)
 		setFooterVisible(false)
 		headerLabel.Text = `{case.Icon}  {case.Name}`
+		local luckMult = response.LuckMult or 1
 		headerLabel.TextColor3 = case.Color
 		subLabel.Text = if free
 			then "Free case!"
@@ -1091,6 +1092,17 @@ function Spinner.run(case: Catalog.Case, count: number, mode: string?)
 				then ""
 				else "s"}`
 			else `Opening {count}  •  {Format.cash(response.Cost)}`
+		if response.BarBoost then
+			subLabel.Text = `🍀 {GameConfig.LuckBar.Mult}x LUCK BAR BOOST!  •  ` .. subLabel.Text
+			subLabel.TextColor3 = Colors.Gold
+			flashScreen(Colors.Good, 0.2)
+			Sound.play("GemHit", { Pitch = 1.3, Volume = 0.6 })
+		elseif luckMult > 1 then
+			subLabel.Text = `🍀 {luckMult}x server luck  •  ` .. subLabel.Text
+			subLabel.TextColor3 = Color3.fromRGB(80, 220, 120)
+		else
+			subLabel.TextColor3 = Colors.SubText
+		end
 
 		local results = response.Results :: { Result }
 		columns = play(case, results)

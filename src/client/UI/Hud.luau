@@ -14,6 +14,7 @@ local DevTools = require(script.Parent.DevTools)
 local Inventory = require(script.Parent.Inventory)
 local Kit = require(script.Parent.Kit)
 local Luck = require(script.Parent.Luck)
+local LuckHud = require(script.Parent.LuckHud)
 local Root = require(script.Parent.Root)
 local Spinner = require(script.Parent.Spinner)
 local Store = require(script.Parent.Store)
@@ -129,6 +130,8 @@ function Hud.start()
 	devButton.Visible = State.Debug
 	freeLabel = freeButton:FindFirstChild("Caption") :: TextLabel
 	freeStroke = freeButton:FindFirstChildOfClass("UIStroke") :: UIStroke
+
+	LuckHud.start()
 
 	shownCash.Changed:Connect(function(value)
 		cashLabel.Text = Format.cash(value)

@@ -20,6 +20,9 @@ local State = {
 	Keys = {} :: { [string]: number },
 	ShowcaseSlots = GameConfig.Showcase.BaseSlots,
 	LuckLevel = 0,
+	PersonalLuck = 0,
+	LuckBar = 0,
+	ServerLuck = { Mult = 1, EndsAt = 0, Boosts = {} } :: { Mult: number, EndsAt: number, Boosts: { any } },
 	Debug = false,
 	Force = {} :: { Gem: string?, Mutation: string? },
 	Serials = {} :: { [string]: number },
@@ -41,6 +44,8 @@ local function apply(kind: string, payload: any)
 		State.Keys = payload.Keys
 		State.ShowcaseSlots = payload.ShowcaseSlots
 		State.LuckLevel = payload.LuckLevel or 0
+		State.PersonalLuck = payload.PersonalLuck or 0
+		State.LuckBar = payload.LuckBar or 0
 		State.Debug = payload.Debug == true
 		State.FreeCaseReadyAt = payload.FreeCaseReadyAt
 		State.Passes = payload.Passes
@@ -66,6 +71,12 @@ local function apply(kind: string, payload: any)
 		State.ShowcaseSlots = payload
 	elseif kind == "Luck" then
 		State.LuckLevel = payload
+	elseif kind == "PersonalLuck" then
+		State.PersonalLuck = payload
+	elseif kind == "LuckBar" then
+		State.LuckBar = payload
+	elseif kind == "ServerLuck" then
+		State.ServerLuck = payload
 	elseif kind == "Force" then
 		State.Force = payload
 	elseif kind == "Serials" then
@@ -98,8 +109,35 @@ function State.maxOpen(): number
 	return if State.hasPass("MultiOpen") then GameConfig.MaxOpenWithPass else GameConfig.MaxOpenBase
 end
 
+-- Permanent luck: upgrades, Luck pass and the personal Robux stack.
+function State.permanentLuck(): Catalog.Luck
+	return Catalog.luckFor(State.LuckLevel, State.hasPass("Luck"), State.PersonalLuck)
+end
+
+-- Server luck multiplier right now (1 when none is running).
+function State.serverLuckMult(): number
+	local now = State.serverNow()
+	local best = 1
+	for _, boost in State.ServerLuck.Boosts do
+		if boost.EndsAt > now then
+			best = math.max(best, boost.Mult)
+		end
+	end
+	return best
+end
+
+function State.barFull(): boolean
+	return State.LuckBar >= GameConfig.LuckBar.RollsToFill
+end
+
+-- Temporary multiplier the next open gets (server luck x a full luck bar).
+function State.boostMult(): number
+	return State.serverLuckMult() * (if State.barFull() then GameConfig.LuckBar.Mult else 1)
+end
+
+-- The luck the player's next open actually rolls with.
 function State.luck(): Catalog.Luck
-	return Catalog.luckFor(State.LuckLevel, State.hasPass("Luck"))
+	return Catalog.boostLuck(State.permanentLuck(), State.boostMult())
 end
 
 function State.serverNow(): number

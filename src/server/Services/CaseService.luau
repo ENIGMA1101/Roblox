@@ -16,6 +16,7 @@ local DataService = require(script.Parent.DataService)
 local DebugService = require(script.Parent.DebugService)
 local Passes = require(script.Parent.Passes)
 local PlayerState = require(script.Parent.PlayerState)
+local ServerLuckService = require(script.Parent.ServerLuckService)
 local SerialService = require(script.Parent.SerialService)
 local Throttle = require(script.Parent.Throttle)
 
@@ -48,14 +49,22 @@ local function inventoryError(data: Data, count: number): string?
 	return nil
 end
 
+export type Boost = { Mult: number, Bar: boolean }
+
 --[[
-	Rolls `count` items and assigns serials to numbered ones. If a Limited item turns out to
+	Rolls `count` items and assigns serials to numbered ones. Luck = the player's permanent
+	luck x server luck x the luck bar (when full, it's used up by this open). If a Limited item turns out to
 	be sold out while claiming its serial, that item is removed and the pull is rerolled.
 	Returns fewer rolls than asked only when the whole case is sold out. May yield (DataStore)
 	and may error if serials can't be claimed; nothing is granted in that case.
 ]]
-local function rollWithSerials(player: Player, case: Catalog.Case, count: number): { Roller.Roll }
-	local luck = PlayerState.luck(player)
+local function rollWithSerials(player: Player, case: Catalog.Case, count: number): ({ Roller.Roll }, Boost)
+	local data = DataService.get(player) :: Data
+	local barConfig = GameConfig.LuckBar
+	local barFull = data.LuckBar >= barConfig.RollsToFill
+	local mult = ServerLuckService.multiplier() * (if barFull then barConfig.Mult else 1)
+	local luck = Catalog.boostLuck(PlayerState.luck(player), mult)
+	local boost = { Mult = mult, Bar = barFull }
 	local force = DebugService.takeForce(player)
 	local soldOut = SerialService.soldOut()
 	local rolls = {}
@@ -63,7 +72,7 @@ local function rollWithSerials(player: Player, case: Catalog.Case, count: number
 		while true do
 			local rolled = Roller.roll(case, luck, rng, force, soldOut)
 			if not rolled then
-				return rolls
+				break
 			end
 			local item = Catalog.ItemById[rolled.I]
 			if not item.Exclusive then
@@ -79,7 +88,15 @@ local function rollWithSerials(player: Player, case: Catalog.Case, count: number
 			soldOut[item.Id] = true
 		end
 	end
-	return rolls
+
+	if #rolls > 0 then
+		if barFull then
+			data.LuckBar = 0
+		end
+		data.LuckBar = math.min(data.LuckBar + #rolls, barConfig.RollsToFill)
+		PlayerState.sync(player, "LuckBar", data.LuckBar)
+	end
+	return rolls, boost
 end
 
 local function grant(player: Player, data: Data, case: Catalog.Case, rolls: { Roller.Roll }): { Result }
@@ -139,8 +156,16 @@ local function openCase(player: Player, data: Data, caseId: any, count: any)
 	PlayerState.takeKeys(player, caseId, keys)
 	PlayerState.trySpend(player, cost)
 
-	local rolls = rollWithSerials(player, case, count)
-	return { ok = true, CaseId = caseId, Results = grant(player, data, case, rolls), KeysUsed = keys, Cost = cost }
+	local rolls, boost = rollWithSerials(player, case, count)
+	return {
+		ok = true,
+		CaseId = caseId,
+		Results = grant(player, data, case, rolls),
+		KeysUsed = keys,
+		Cost = cost,
+		LuckMult = boost.Mult,
+		BarBoost = boost.Bar,
+	}
 end
 
 local function claimFreeCase(player: Player, data: Data)
@@ -156,8 +181,16 @@ local function claimFreeCase(player: Player, data: Data)
 	local case = Catalog.CaseById[GameConfig.FreeCase.CaseId]
 	data.LastFreeCase = now
 	PlayerState.sync(player, "FreeCase", now + GameConfig.FreeCase.Cooldown)
-	local rolls = rollWithSerials(player, case, 1)
-	return { ok = true, CaseId = case.Id, Results = grant(player, data, case, rolls), KeysUsed = 0, Cost = 0 }
+	local rolls, boost = rollWithSerials(player, case, 1)
+	return {
+		ok = true,
+		CaseId = case.Id,
+		Results = grant(player, data, case, rolls),
+		KeysUsed = 0,
+		Cost = 0,
+		LuckMult = boost.Mult,
+		BarBoost = boost.Bar,
+	}
 end
 
 --[[
@@ -171,7 +204,7 @@ function CaseService.openPaid(player: Player, case: Catalog.Case, quiet: boolean
 	if not data then
 		error("player data not loaded")
 	end
-	local rolls = rollWithSerials(player, case, 1)
+	local rolls, boost = rollWithSerials(player, case, 1)
 	local response
 	if #rolls == 0 then
 		PlayerState.addCash(player, GameConfig.SoldOutCash)
@@ -181,7 +214,15 @@ function CaseService.openPaid(player: Player, case: Catalog.Case, quiet: boolean
 			CaseId = case.Id,
 		}
 	else
-		response = { ok = true, CaseId = case.Id, Results = grant(player, data, case, rolls), KeysUsed = 0, Cost = 0 }
+		response = {
+			ok = true,
+			CaseId = case.Id,
+			Results = grant(player, data, case, rolls),
+			KeysUsed = 0,
+			Cost = 0,
+			LuckMult = boost.Mult,
+			BarBoost = boost.Bar,
+		}
 	end
 	if not quiet then
 		paidOpenEvent:FireClient(player, case.Id, response)

@@ -8,7 +8,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
 local Format = require(Shared.Format)
-local GameConfig = require(Shared.Config.GameConfig)
 
 local Actions = require(script.Parent.Parent.Actions)
 local State = require(script.Parent.Parent.State)
@@ -19,7 +18,6 @@ local Window = require(script.Parent.Window)
 
 local Colors = Theme.Colors
 local Fonts = Theme.Fonts
-local Upgrades = GameConfig.LuckUpgrades
 
 local LUCK_GREEN = Color3.fromRGB(80, 220, 120)
 
@@ -38,18 +36,13 @@ end
 
 local function refreshButton()
 	local price = Catalog.luckUpgradePrice(State.LuckLevel)
-	if not price then
-		buyButton.Text = "MAX LUCK"
-		buyButton.Active = false
-		Kit.setButtonColor(buyButton, Colors.PanelLighter)
-		buyButton.TextColor3 = Colors.Gold
-		return
-	end
 	local affordable = State.Cash >= price
 	buyButton.Text = `UPGRADE   {Format.cash(price)}`
 	buyButton.Active = affordable
 	Kit.setButtonColor(buyButton, if affordable then Color3.fromRGB(34, 140, 74) else Colors.PanelLighter)
 	buyButton.TextColor3 = if affordable then Colors.Text else Colors.SubText
+	-- The bar shows how close your cash is to the next level.
+	Kit.tween(barFill, 0.3, { Size = UDim2.fromScale(math.clamp(State.Cash / price, 0, 1), 1) })
 end
 
 local function tableRow(order: number, label: string, color: Color3, now: string, nextValue: string)
@@ -95,15 +88,22 @@ end
 function Luck.render()
 	local level = State.LuckLevel
 	local hasPass = State.hasPass("Luck")
-	local now = Catalog.luckFor(level, hasPass)
-	local maxed = level >= Upgrades.MaxLevel
-	local nextLuck = if maxed then nil else Catalog.luckFor(level + 1, hasPass)
+	local personal = State.PersonalLuck
+	local now = Catalog.luckFor(level, hasPass, personal)
+	local nextLuck = Catalog.luckFor(level + 1, hasPass, personal)
 
-	levelLabel.Text = `Level {level} / {Upgrades.MaxLevel}`
-	Kit.tween(barFill, 0.3, { Size = UDim2.fromScale(level / Upgrades.MaxLevel, 1) })
-	boostLabel.Text = `Gem pulls {multiplier(now.Gem)}{if nextLuck then "  →  " .. multiplier(nextLuck.Gem) else ""}\n`
-		.. `Mutations {multiplier(now.Mutation)}{if nextLuck then "  →  " .. multiplier(nextLuck.Mutation) else ""}`
-		.. (if hasPass then "\n(includes your 2x Luck pass)" else "")
+	levelLabel.Text = `Level {level}`
+	local extras = {}
+	if hasPass then
+		table.insert(extras, "2x Luck pass")
+	end
+	if personal > 0 then
+		table.insert(extras, `{Format.mult(Catalog.personalLuckMult(personal))} personal luck`)
+	end
+	boostLabel.Text = `Gem pulls {multiplier(now.Gem)}  →  {multiplier(nextLuck.Gem)}\n`
+		.. `Mutations {multiplier(now.Mutation)}  →  {multiplier(nextLuck.Mutation)}`
+		.. (if #extras > 0 then `\n(includes {table.concat(extras, " + ")})` else "")
+		.. (if State.boostMult() > 1 then `\nBoost active now: {Format.mult(State.boostMult())} on top` else "")
 	refreshButton()
 
 	for _, child in table_:GetChildren() do
@@ -124,19 +124,27 @@ function Luck.render()
 			`{case.Icon} {case.Name}`,
 			case.Color,
 			Format.oneIn(Catalog.gemChance(case, now.Gem)),
-			if nextLuck then Format.oneIn(Catalog.gemChance(case, nextLuck.Gem)) else ""
+			Format.oneIn(Catalog.gemChance(case, nextLuck.Gem))
 		)
 	end
 
 	section(nextOrder(), "Rarest mutations")
+	local function chanceOf(mutationId: string, luck: number): number
+		for _, entry in Catalog.mutationOdds(luck) do
+			if entry.Id == mutationId then
+				return entry.P
+			end
+		end
+		return 0
+	end
 	for i = #Catalog.Mutations, math.max(#Catalog.Mutations - 3, 1), -1 do
 		local mutation = Catalog.Mutations[i]
 		tableRow(
 			nextOrder(),
 			`{mutation.Name} {Format.mult(mutation.Mult)}`,
 			mutation.Color,
-			Format.oneIn(Catalog.mutationChance(mutation, now.Mutation)),
-			if nextLuck then Format.oneIn(Catalog.mutationChance(mutation, nextLuck.Mutation)) else ""
+			Format.oneIn(chanceOf(mutation.Id, now.Mutation)),
+			Format.oneIn(chanceOf(mutation.Id, nextLuck.Mutation))
 		)
 	end
 end
@@ -238,7 +246,14 @@ function Luck.start()
 		end
 		if kind == "Cash" then
 			refreshButton()
-		elseif kind == "Luck" or kind == "Passes" or kind == "State" then
+		elseif
+			kind == "Luck"
+			or kind == "Passes"
+			or kind == "State"
+			or kind == "PersonalLuck"
+			or kind == "ServerLuck"
+			or kind == "LuckBar"
+		then
 			Luck.render()
 		end
 	end)

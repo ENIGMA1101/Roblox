@@ -11,6 +11,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
 local Format = require(Shared.Format)
 local GameConfig = require(Shared.Config.GameConfig)
+local Monetization = require(Shared.Config.Monetization)
 
 local Actions = require(script.Parent.Parent.Actions)
 local State = require(script.Parent.Parent.State)
@@ -185,14 +186,29 @@ function DevTools.start()
 		Actions.debug("FreeCaseReady")
 	end)
 	local luckRow = buttonRow(scroller, 10)
-	for index, level in { 0, math.floor(GameConfig.LuckUpgrades.MaxLevel / 2), GameConfig.LuckUpgrades.MaxLevel } do
+	for index, level in { 0, 10, 25 } do
 		button(luckRow, index, `Luck level {level}`, nil, function()
 			Actions.debug("SetLuck", level)
 		end)
 	end
+	button(luckRow, 4, "Fill luck bar", Color3.fromRGB(34, 140, 74), function()
+		Actions.debug("FillBar")
+	end)
+	local boostRow = buttonRow(scroller, 11)
+	for index, boost in Monetization.ServerLuck do
+		button(boostRow, index, `{boost.Mult}x server luck (2 min)`, nil, function()
+			Actions.debug("ServerLuck", boost.Key)
+		end)
+	end
+	button(boostRow, 4, "Personal luck +1 step", nil, function()
+		Actions.debug("PersonalLuck", State.PersonalLuck + 1)
+	end)
+	button(boostRow, 5, "Reset personal luck", nil, function()
+		Actions.debug("PersonalLuck", 0)
+	end)
 
 	Kit.label({
-		LayoutOrder = 11,
+		LayoutOrder = 12,
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Text = "Items from forced opens are real and saved. Players only see this panel in Studio or if "

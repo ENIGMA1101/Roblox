@@ -104,12 +104,25 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
 - **Money:** sell items, showcase your best items for cash per second (with diminishing
   returns, so the late game stays grindy), a small base income, 25% offline earnings, and a
   free Street Luxe case every 5 minutes.
-- **Luck upgrades:** 20 permanent levels bought with cash (🍀 on the HUD). Each level makes the
-  case's gem rarities 2.5% more likely and mutations 10% more likely, up to ×1.5 gem pulls and
-  ×3 mutations at level 20. Prices grow ×1.9 per level ($25K for the first, about $4.9B for the last), so
-  it's the long-term cash sink. It stacks with the Luck pass. The Luck window shows exactly how
-  the next level changes every case's gem chance and the rarest mutations, and the case preview
-  odds always include your current luck.
+- **Luck** (all sources multiply together):
+  - **Luck upgrades (cash, no max level):** each level adds +2.5% gem odds and +10% mutation
+    odds; the price grows ×1.9 per level ($25K, …, ~$4.9B at level 20, ~$3T at 30). It's the
+    endless cash sink. Opened with 🍀 Luck on the left.
+  - **Personal luck stack (Robux, permanent):** the 🍀 icon on the right. The first buy gives 2x,
+    then 4x, 6x, 8x… (+2 each time). The price goes 5, 8, 11, 17, 25… Robux (×1.5 each), one
+    developer product per step.
+  - **Server luck (Robux, 15 min, everyone in the server):** the 🌐 icon on the right. 2x for R$33,
+    3x for R$99, 10x for R$199. Buying one that's running adds 15 minutes; the highest active
+    one applies. A banner under the cash shows the multiplier and time left.
+  - **Luck bar (free):** the bar at the bottom fills by 1 per item opened. At 30 the next open
+    gets 10x luck on every reel, then it empties.
+  - **2x Luck gamepass**, as before.
+  - **Caps keep this from breaking the economy.** Permanent luck can raise a case's gem odds only
+    until it returns ~85% of its price in item value. Temporary boosts (server luck, the luck bar)
+    allow up to ~130%. Past a point, mutation luck just guarantees a mutation (as in the Robux
+    cases) rather than making the rarest mutations as common as Polished, so mutations add at most ~24%.
+    In practice the top cases return up to ~105% on maxed permanent luck and ~160% during boosts.
+    Case previews and the Luck window always show the real capped odds.
 - **Robux:** 5 gamepasses (2x Luck, Fast Open, Auto Open, Multi Open+, 2x Showcase Income),
   3 cash packs that scale with your income, and optional key bundles per case. Key bundles are
   only sold inside the case preview, directly beside the full odds list.
@@ -127,6 +140,16 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
 Until a product id is set, the case shows "Not on sale yet". In Studio use **🛠️ Test open (dev,
 free)** in the preview, or the Dev panel, to open it without paying.
 
+## Selling luck
+
+Create these developer products and paste the ids into `Config/Monetization.luau`:
+
+- `ServerLuck`: three products at 33, 99 and 199 Robux (2x, 3x, 10x for 15 minutes).
+- `PersonalLuck.ProductIds`: one product per step, in order, priced 5, 8, 11, 17, 25, 38,
+  57, 85, 128, 192, 288, 432, 649, 973, 1460, 2189, 3284, 4926, 7389 and 11084 Robux (step N =
+  5 × 1.5^(N-1)). Roblox products can't change price, which is why each step is its own
+  product. Fewer ids means fewer purchasable steps; add more to extend it.
+
 ## Testing the gem and mutations (developer tools)
 
 In Studio a 🛠️ **Dev** button appears on the HUD. It opens a panel where you can:
@@ -135,7 +158,8 @@ In Studio a 🛠️ **Dev** button appears on the HUD. It opens a panel where yo
   combine, so gem + Crown Jewel works. The next open (including the free case) uses them on every
   column, then they clear.
 - **Open any case directly** from the panel, ×1 to ×5, without walking to the stall.
-- Add $1M / $100M / $10B, make the free case ready, and set your luck level to 0, 10 or 20.
+- Add $1M / $100M / $10B, make the free case ready, set your luck level to 0, 10 or 25, fill the
+  luck bar, start 2x / 3x / 10x server luck for 2 minutes, and add or reset personal luck steps.
 
 The server checks permission on every request. The panel works in Studio, and in live servers only
 for UserIds listed in `GameConfig.Debug.Admins`; set `Debug.Enabled = false` to turn it off
