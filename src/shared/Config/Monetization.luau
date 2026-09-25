@@ -31,8 +31,15 @@ local Monetization = {
 		{
 			Key = "Luck",
 			Name = "2x Luck",
-			Description = "Double mutation chance and +35% gem chance.",
+			Description = "Doubles your item luck: rare items drop far more often. Stacks with all other luck.",
 			Icon = "🍀",
+			PassId = 0,
+		},
+		{
+			Key = "MutationLuck",
+			Name = "2x Mutation Luck",
+			Description = "Doubles your chance of every mutation. The only way to raise mutation odds.",
+			Icon = "🧬",
 			PassId = 0,
 		},
 		{

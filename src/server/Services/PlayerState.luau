@@ -70,14 +70,15 @@ function PlayerState.bind(name: string, handler: (Player, Data, ...any) -> { [st
 	end
 end
 
--- Permanent luck (upgrade level, Luck pass, personal Robux stack). Temporary boosts are
--- added on top by CaseService.
+-- Permanent luck (upgrade level, Luck pass, personal Robux stack, Mutation Luck pass).
+-- Temporary boosts are added on top by CaseService.
 function PlayerState.luck(player: Player): Catalog.Luck
 	local data = DataService.get(player)
 	return Catalog.luckFor(
 		if data then data.LuckLevel else 0,
 		Passes.has(player, "Luck"),
-		if data then data.PersonalLuck else 0
+		if data then data.PersonalLuck else 0,
+		Passes.has(player, "MutationLuck")
 	)
 end
 

@@ -1,6 +1,6 @@
 --[[
-	Luck upgrade window: spend cash on permanent luck levels and see exactly how each level
-	changes every case's gem chance and the rarest mutations.
+	Luck upgrade window: spend cash on permanent luck levels, see every luck source stacked
+	together, and see exactly how the next level changes each case's top item and gem chance.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Catalog = require(Shared.Catalog)
 local Format = require(Shared.Format)
+local GameConfig = require(Shared.Config.GameConfig)
 
 local Actions = require(script.Parent.Parent.Actions)
 local State = require(script.Parent.Parent.State)
@@ -29,10 +30,6 @@ local barFill: Frame
 local boostLabel: TextLabel
 local buyButton: TextButton
 local table_: ScrollingFrame
-
-local function multiplier(value: number): string
-	return "×" .. string.format("%.2f", value)
-end
 
 local function refreshButton()
 	local price = Catalog.luckUpgradePrice(State.LuckLevel)
@@ -85,25 +82,32 @@ local function section(order: number, text: string)
 	})
 end
 
+-- Chance of a case's most valuable regular (non-grail) item at this luck.
+local function topItemChance(case: Catalog.Case, itemLuck: number, boosted: boolean?): number
+	local best: Catalog.Entry? = nil
+	for _, entry in Catalog.caseOdds(case, itemLuck, nil, boosted) do
+		if not entry.Grail and (best == nil or entry.Item.Value > best.Item.Value) then
+			best = entry
+		end
+	end
+	return if best then best.P else 0
+end
+
 function Luck.render()
 	local level = State.LuckLevel
-	local hasPass = State.hasPass("Luck")
-	local personal = State.PersonalLuck
-	local now = Catalog.luckFor(level, hasPass, personal)
-	local nextLuck = Catalog.luckFor(level + 1, hasPass, personal)
+	local now = State.luck()
+	local nextItem = now.Item * GameConfig.LuckUpgrades.PerLevel
 
 	levelLabel.Text = `Level {level}`
-	local extras = {}
-	if hasPass then
-		table.insert(extras, "2x Luck pass")
+	local parts = {}
+	for _, source in State.luckSources() do
+		if source.Mult > 1 then
+			table.insert(parts, `{source.Name} {Format.mult(source.Mult)}`)
+		end
 	end
-	if personal > 0 then
-		table.insert(extras, `{Format.mult(Catalog.personalLuckMult(personal))} personal luck`)
-	end
-	boostLabel.Text = `Gem pulls {multiplier(now.Gem)}  →  {multiplier(nextLuck.Gem)}\n`
-		.. `Mutations {multiplier(now.Mutation)}  →  {multiplier(nextLuck.Mutation)}`
-		.. (if #extras > 0 then `\n(includes {table.concat(extras, " + ")})` else "")
-		.. (if State.boostMult() > 1 then `\nBoost active now: {Format.mult(State.boostMult())} on top` else "")
+	boostLabel.Text = `Item luck {Format.mult(now.Item)}  →  <font color="#50DC78">{Format.mult(nextItem)}</font>\n`
+		.. (if #parts > 0 then table.concat(parts, " × ") else "No luck yet")
+		.. `\nMutation luck {Format.mult(now.Mutation)}{if now.Mutation > 1 then "" else " (Mutation Luck pass)"}`
 	refreshButton()
 
 	for _, child in table_:GetChildren() do
@@ -117,34 +121,37 @@ function Luck.render()
 		return order
 	end
 
+	section(nextOrder(), "Top item chance per case")
+	for _, case in Catalog.Cases do
+		tableRow(
+			nextOrder(),
+			`{case.Icon} {case.Name}`,
+			case.Color,
+			Format.oneIn(topItemChance(case, now.Item, now.Boosted)),
+			Format.oneIn(topItemChance(case, nextItem, now.Boosted))
+		)
+	end
+
 	section(nextOrder(), "Gem chance per case")
 	for _, case in Catalog.Cases do
 		tableRow(
 			nextOrder(),
 			`{case.Icon} {case.Name}`,
 			case.Color,
-			Format.oneIn(Catalog.gemChance(case, now.Gem)),
-			Format.oneIn(Catalog.gemChance(case, nextLuck.Gem))
+			Format.oneIn(Catalog.gemChance(case, now.Item, now.Boosted)),
+			Format.oneIn(Catalog.gemChance(case, nextItem, now.Boosted))
 		)
 	end
 
-	section(nextOrder(), "Rarest mutations")
-	local function chanceOf(mutationId: string, luck: number): number
-		for _, entry in Catalog.mutationOdds(luck) do
-			if entry.Id == mutationId then
-				return entry.P
-			end
-		end
-		return 0
-	end
+	section(nextOrder(), "Rarest mutations (item luck doesn't change these)")
 	for i = #Catalog.Mutations, math.max(#Catalog.Mutations - 3, 1), -1 do
 		local mutation = Catalog.Mutations[i]
 		tableRow(
 			nextOrder(),
 			`{mutation.Name} {Format.mult(mutation.Mult)}`,
 			mutation.Color,
-			Format.oneIn(chanceOf(mutation.Id, now.Mutation)),
-			Format.oneIn(chanceOf(mutation.Id, nextLuck.Mutation))
+			Format.oneIn(Catalog.mutationChance(mutation, now.Mutation)),
+			""
 		)
 	end
 end
@@ -192,6 +199,7 @@ function Luck.start()
 	boostLabel = Kit.label({
 		Position = UDim2.fromOffset(0, 164),
 		Size = UDim2.new(1, 0, 0, 90),
+		RichText = true,
 		TextSize = 17,
 		TextWrapped = true,
 		TextTruncate = Enum.TextTruncate.None,
@@ -201,11 +209,12 @@ function Luck.start()
 		Parent = left,
 	})
 	Kit.label({
-		Position = UDim2.fromOffset(0, 262),
-		Size = UDim2.new(1, 0, 0, 80),
-		Text = "Luck makes each case's gem items and every mutation more likely. Levels are permanent. "
-			.. "Each case's luck boost stops where the case would pay back its full price.",
-		TextSize = 14,
+		Position = UDim2.fromOffset(0, 258),
+		Size = UDim2.new(1, 0, 0, 120),
+		Text = "Every luck source multiplies together. Luck boosts rare items the most: at 100x luck a case's "
+			.. "top item is close to 100x more likely, while commons barely change. Each case has diminishing "
+			.. "returns so luck always helps but can't break it. Grails and mutations are never affected.",
+		TextSize = 13,
 		TextWrapped = true,
 		TextTruncate = Enum.TextTruncate.None,
 		TextYAlignment = Enum.TextYAlignment.Top,

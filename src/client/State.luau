@@ -109,9 +109,9 @@ function State.maxOpen(): number
 	return if State.hasPass("MultiOpen") then GameConfig.MaxOpenWithPass else GameConfig.MaxOpenBase
 end
 
--- Permanent luck: upgrades, Luck pass and the personal Robux stack.
+-- Permanent luck: upgrades, Luck pass, the personal Robux stack and the Mutation Luck pass.
 function State.permanentLuck(): Catalog.Luck
-	return Catalog.luckFor(State.LuckLevel, State.hasPass("Luck"), State.PersonalLuck)
+	return Catalog.luckFor(State.LuckLevel, State.hasPass("Luck"), State.PersonalLuck, State.hasPass("MutationLuck"))
 end
 
 -- Server luck multiplier right now (1 when none is running).
@@ -138,6 +138,18 @@ end
 -- The luck the player's next open actually rolls with.
 function State.luck(): Catalog.Luck
 	return Catalog.boostLuck(State.permanentLuck(), State.boostMult())
+end
+
+-- Every item luck source with its multiplier (they all multiply together).
+function State.luckSources(): { { Name: string, Mult: number } }
+	local barMult = if State.barFull() then GameConfig.LuckBar.Mult else 1
+	return {
+		{ Name = "Upgrades", Mult = Catalog.upgradeLuck(State.LuckLevel) },
+		{ Name = "2x Luck pass", Mult = if State.hasPass("Luck") then GameConfig.Luck.PassMult else 1 },
+		{ Name = "Personal", Mult = Catalog.personalLuckMult(State.PersonalLuck) },
+		{ Name = "Server", Mult = State.serverLuckMult() },
+		{ Name = "Luck bar", Mult = barMult },
+	}
 end
 
 function State.serverNow(): number

@@ -118,26 +118,32 @@ so exploiters can't change outcomes, and leaving mid-spin never loses an item.
 - **Money:** sell items, showcase your best items for cash per second (with diminishing
   returns, so the late game stays grindy), a small base income, 25% offline earnings, and a
   free Street Luxe case every 5 minutes.
-- **Luck** (all sources multiply together):
-  - **Luck upgrades (cash, no max level):** each level adds +2.5% gem odds and +10% mutation
-    odds; the price grows ×1.9 per level ($25K, …, ~$4.9B at level 20, ~$3T at 30). It's the
-    endless cash sink. Opened with 🍀 Luck on the left.
-  - **Personal luck stack (Robux, permanent):** the 🍀 icon on the right. The first buy gives 2x,
-    then 4x, 6x, 8x… (+2 each time). The price goes 5, 8, 11, 17, 25… Robux (×1.5 each), one
-    developer product per step.
-  - **Server luck (Robux, 15 min, everyone in the server):** the 🌐 icon on the right. 2x for R$33,
-    3x for R$99, 10x for R$199. Buying one that's running adds 15 minutes; the highest active
-    one applies. A banner under the cash shows the multiplier and time left.
-  - **Luck bar (free):** the bar at the bottom fills by 1 per item opened. At 30 the next open
-    gets 10x luck on every reel, then it empties.
-  - **2x Luck gamepass**, as before.
-  - **Caps keep this from breaking the economy.** Permanent luck can raise a case's gem odds only
-    until it returns ~85% of its price in item value. Temporary boosts (server luck, the luck bar)
-    allow up to ~130%. Past a point, mutation luck just guarantees a mutation (as in the Robux
-    cases) rather than making the rarest mutations as common as Polished, so mutations add at most ~24%.
-    In practice the top cases return up to ~105% on maxed permanent luck and ~160% during boosts.
-    Case previews and the Luck window always show the real capped odds.
-- **Robux:** 5 gamepasses (2x Luck, Fast Open, Auto Open, Multi Open+, 2x Showcase Income),
+- **Luck** only changes which item you pull. It never changes mutations. Every source multiplies
+  together into one number, shown above the luck bar as a full breakdown (e.g.
+  `🍀 LUCK ×54 = Upgrades ×1.7 × 2x Luck pass ×2 × Personal ×8 × Server ×2`):
+  - **Luck upgrades (cash, no max level):** each level multiplies luck by ×1.1 (level 10 ≈ ×2.6,
+    20 ≈ ×6.7, 30 ≈ ×17). The price grows ×1.9 per level ($25K, …, ~$4.9B at level 20). This is
+    the endless cash sink.
+  - **2x Luck gamepass:** a real ×2.
+  - **Personal luck stack (Robux, permanent):** the 🍀 icon on the right. ×2, then ×4, ×6, ×8…
+    (+2 each buy), priced 5, 8, 11, 17, 25… Robux (×1.5 each), with one developer product per step.
+  - **Server luck (Robux, 15 min, everyone in the server):** the 🌐 icon on the right. ×2 for R$33,
+    ×3 for R$99, ×10 for R$199.
+  - **Luck bar (free):** fills by 1 per item opened. At 30, the next open gets ×10.
+  - **How it bends the odds:** each item's chance is multiplied by luck^T, where T runs from 0 for
+    the case's cheapest item to 1 for its most valuable. At ×10 luck the top items are close to
+    10× more likely, mid-tier items a few times more likely, and commons barely change. The case
+    preview shows every rarity's normal → lucky odds, and the Luck window shows each case's top
+    item chance now → next level.
+  - **Diminishing returns, never a wall:** luck works at full strength until it has added
+    `Luck.FullGain` (+75% of the price) to a case's return. Past that, gains slow down
+    logarithmically but never stop. Temporary boosts get much more room (`BoostFullGain` +200%).
+    Rough numbers: ×10 luck takes most cases to 150-240% return, ×100 to 200-360%, and a ×1000
+    boost to 300-700%. Grails keep their fixed odds, so the rarest items stay rare no matter what.
+- **Mutation luck:** only the **2x Mutation Luck** gamepass changes mutation odds (it halves every
+  "1 in N"), so a Crown Jewel stays a 1 in 100,000 moment even with the pass. Robux cases still
+  guarantee a mutation.
+- **Robux:** 6 gamepasses (2x Luck, 2x Mutation Luck, Fast Open, Auto Open, Multi Open+, 2x Showcase Income),
   3 cash packs that scale with your income, and optional key bundles per case. Key bundles are
   only sold inside the case preview, directly beside the full odds list.
 
@@ -163,6 +169,8 @@ Create these developer products and paste the ids into `Config/Monetization.luau
   57, 85, 128, 192, 288, 432, 649, 973, 1460, 2189, 3284, 4926, 7389 and 11084 Robux (step N =
   5 × 1.5^(N-1)). Roblox products can't change price, which is why each step is its own
   product. Fewer ids means fewer purchasable steps; add more to extend it.
+- Gamepasses: create **2x Luck** and **2x Mutation Luck** (plus the others) and paste their ids
+  into `Passes`.
 
 ## Testing the gem and mutations (developer tools)
 
@@ -187,7 +195,7 @@ completely. Items from forced opens are real saved items, so don't use it on a l
 | Items, values, brands per item | `Config/Items.luau` |
 | Brand names, price multipliers, rarity | `Config/Brands.luau` |
 | Cases: price, theme pool (category / brand / item list), RTP, Robux product | `Config/Cases.luau` |
-| Themed-case return curve, gem threshold, luck cap, sold-out payout | `Config/GameConfig.luau` (`ThemedCases`, `LuckLimits`, `SoldOutCash`) |
+| Themed-case return curve, gem threshold, luck strength, sold-out payout | `Config/GameConfig.luau` (`ThemedCases`, `Luck`, `LuckUpgrades`, `SoldOutCash`) |
 | Mutations | `Config/Mutations.luau` |
 | Starting cash, showcase, luck pass, luck upgrades, dev tools, spin timing, gem artwork | `Config/GameConfig.luau` |
 | Gamepass and product ids | `Config/Monetization.luau` (set `StudioOwnsAllPasses = true` to test passes) |
@@ -207,39 +215,39 @@ LUAU=/path/to/luau python3 tools/balance.py            # full report
 LUAU=/path/to/luau python3 tools/balance.py --quick    # EV table only
 ```
 
-For all 32 cases it prints the item count, expected value and return-to-player (RTP) (base, with
-the Luck pass, at max luck, and at max luck plus the pass), plus the gem chance and top item.
-It also runs a roll check that the roller matches the maths, and 15 simulated players over 80
-hours who open mixed cases and buy luck levels. A case whose price can't be reached by its
-items fails at startup with a message telling you what to change.
+For all 32 cases it prints the item count, expected value and return-to-player (RTP): base, with
+the 2x Luck pass, at a late-game reference luck (level 20 + 4 personal buys = ×54, and ×108 with the pass),
+and with a ×100 boost on top. It also prints the gem chance, the top item, and a luck curve (RTP and
+top-item odds at ×1 to ×10K luck). Then it runs a roll check that the roller matches the maths, and
+15 simulated players over 80 hours who open mixed cases and buy luck levels. A case whose price
+can't be reached by its items fails at startup with a message telling you what to change.
 
 Mixed-case defaults:
 
-| Case | Price | RTP | + Luck pass | Max luck + pass | Gem (base) |
-|---|---|---|---|---|---|
-| Street Luxe | $800 | 108% | 123% | 135% | 1 in 263 |
-| Boutique Box | $5.8K | 92% | 107% | 115% | 1 in 276 |
-| Atelier Crate | $48K | 85% | 95% | 109% | 1 in 153 |
-| Penthouse Case | $350K | 80% | 89% | 109% | 1 in 185 |
-| Monaco Vault | $2.65M | 75% | 83% | 103% | 1 in 200 |
-| The Vermeil Vault | $12M | 68% | 79% | 104% | 1 in 31 |
+| Case | Price | RTP | + 2x Luck pass | Luck ×108 | ×108 + ×100 boost | Gem (base) |
+|---|---|---|---|---|---|---|
+| Street Luxe | $800 | 108% | 136% | 315% | 765% | 1 in 263 |
+| Boutique Box | $5.8K | 92% | 126% | 312% | 766% | 1 in 276 |
+| Atelier Crate | $48K | 85% | 99% | 243% | 647% | 1 in 153 |
+| Penthouse Case | $350K | 80% | 96% | 238% | 605% | 1 in 185 |
+| Monaco Vault | $2.65M | 75% | 92% | 233% | 556% | 1 in 200 |
+| The Vermeil Vault | $12M | 68% | 84% | 218% | 509% | 1 in 31 |
 
 Themed cases return ~100% at $800 down to ~71% at $60M, with gems between 1 in 28 and 1 in 480.
 The Robux cases average $124K (R$99), $557K (R$333), $2.2M (R$777) and $6.3M (R$999) per pull,
 guaranteed mutation included; change `TargetValue` on a case to adjust.
 
-Median time for the simulated players to reach each mixed case: Boutique ~45 min, Atelier
-~2.5 h, Penthouse ~6.5 h, Monaco ~12 h, Vermeil Vault ~17.5 h. They're still buying luck levels
-at 80 hours, so max luck is the endgame chase.
+Median time for simulated free players (no passes, no Robux luck) to reach each mixed case:
+Boutique ~45 min, Atelier ~3 h, Penthouse ~5.5 h, Monaco ~9 h, Vermeil Vault ~11 h. They're still
+buying luck levels at 80 hours, so max luck is the endgame chase.
 
-The cheap cases pay slightly over 100% on purpose. Opening them is the early-game grind, and the
-absolute profit is too small to matter later. Higher tiers lose money on average; progress comes
-from the showcase and from jackpot pulls. The Luck pass boosts gem odds by only ×1.35 (mutations
-×2) because gem pulls hold 20–60% of each case's value. A flat ×2 would push the cheap cases far
-past 100% and turn the pass into a money printer. On top of that, luck is capped per case
-(`LuckLimits`): it raises gem odds only until a case would return about 92% of its price, though it
-always allows at least +15% value. With mutation luck on top, no case above $50K goes past ~109%,
-even at max luck with the pass. The Luck window and case previews show the capped odds.
+Luck is deliberately strong: players who stack it really are OP, and cases pay well over 100%.
+What keeps it from breaking the game:
+- The logarithmic slowdown past `Luck.FullGain`.
+- Luck upgrade prices that grow ×1.9 per level while luck grows ×1.1.
+- Grails and mutations that luck never touches.
+
+To tone luck down, lower `FullGain`/`Softness` (or the Boost versions). To make it even stronger, raise them.
 
 ## Advice for the best result
 

@@ -34,6 +34,7 @@ local REFERENCE_PERSONAL = 4
 local maxLuck = Catalog.luckFor(REFERENCE_LEVEL, false, REFERENCE_PERSONAL)
 local maxLuckPass = Catalog.luckFor(REFERENCE_LEVEL, true, REFERENCE_PERSONAL)
 local boosted = Catalog.boostLuck(maxLuckPass, 10 * GameConfig.LuckBar.Mult)
+local passLuck = Catalog.luckFor(0, true, 0)
 
 local function pct(value: number?): string
 	return if value then string.format("%.1f%%", value * 100) else "-"
@@ -73,7 +74,7 @@ for _, case in Catalog.Cases do
 			.. lpad(if case.Paid then "R$" .. case.Paid.Robux else Format.short(case.Price), 9)
 			.. lpad(Format.short(ev), 9)
 			.. lpad(pct(Catalog.rtp(case)), 8)
-			.. lpad(pct(Catalog.rtp(case, GameConfig.LuckPass)), 10)
+			.. lpad(pct(Catalog.rtp(case, passLuck)), 10)
 			.. lpad(pct(Catalog.rtp(case, maxLuck)), 10)
 			.. lpad(pct(Catalog.rtp(case, maxLuckPass)), 10)
 			.. lpad(pct(Catalog.rtp(case, boosted)), 11)
@@ -89,13 +90,54 @@ for _, entry in Catalog.mutationOdds(1) do
 end
 print(
 	string.format(
-		"\nMutations: %s chance of any, expected multiplier %.4f (2x luck: %.4f, guaranteed: %.4f)",
+		"\nMutations: %s chance of any, expected multiplier %.4f (Mutation Luck pass: %.4f, guaranteed: %.4f)",
 		Format.chance(anyMutation),
 		Catalog.expectedMutationMult(1),
-		Catalog.expectedMutationMult(GameConfig.LuckPass.Mutation),
+		Catalog.expectedMutationMult(GameConfig.Luck.MutationPassMult),
 		Catalog.expectedMutationMult(1, true)
 	)
 )
+
+print(
+	string.format(
+		"\nReference luck: level %d + %d personal buys = %s, with pass %s, x100 boost %s",
+		REFERENCE_LEVEL,
+		REFERENCE_PERSONAL,
+		Format.mult(maxLuck.Item),
+		Format.mult(maxLuckPass.Item),
+		Format.mult(boosted.Item)
+	)
+)
+
+print("\n== Luck curve: RTP (and top item chance) at total item luck; boosted = temporary boost ==")
+local LUCKS = { 1, 2, 10, 100, 1000, 10000 }
+local head = pad("case", 20)
+for _, l in LUCKS do
+	head ..= lpad(Format.mult(l), 20)
+end
+print(head .. lpad("x1000 boosted", 20))
+for _, case in Catalog.Cases do
+	local line = pad(case.Name, 20)
+	local function cell(l: number, isBoost: boolean): string
+		local top = 0
+		local topValue = 0
+		for _, entry in Catalog.caseOdds(case, l, nil, isBoost) do
+			if not entry.Grail and entry.Item.Value > topValue then
+				topValue = entry.Item.Value
+				top = entry.P
+			end
+		end
+		local luck = { Item = l, Mutation = 1, Boosted = isBoost }
+		local value = if case.Price > 0
+			then pct(Catalog.rtp(case, luck))
+			else string.format("%.2fx", Catalog.expectedValue(case, luck) / Catalog.expectedValue(case))
+		return lpad(`{value} ({Format.oneIn(top)})`, 20)
+	end
+	for _, l in LUCKS do
+		line ..= cell(l, false)
+	end
+	print(line .. cell(1000, true))
+end
 
 print("\n== Items per rarity ==")
 for _, rarity in Catalog.Rarities do
@@ -217,7 +259,7 @@ local function runBot()
 
 	while t < HOURS * 3600 do
 		if t >= freeReadyAt then
-			local roll = Roller.roll(freeCase, Catalog.luckFor(luckLevel, false), rng) :: Roller.Roll
+			local roll = Roller.roll(freeCase, Catalog.luckFor(luckLevel, false, 0), rng) :: Roller.Roll
 			receive(Catalog.valueOf(roll))
 			freeReadyAt = t + GameConfig.FreeCase.Cooldown
 			advance(batchSeconds(1, roll.Gem))
@@ -229,7 +271,7 @@ local function runBot()
 			cash -= luckPrice
 			luckLevel += 1
 		end
-		local luck = Catalog.luckFor(luckLevel, false)
+		local luck = Catalog.luckFor(luckLevel, false, 0)
 
 		if extra and cash >= extra * 2 then
 			cash -= extra

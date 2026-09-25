@@ -1,6 +1,7 @@
 --[[
 	Luck on the HUD:
-	- Bottom: the luck bar. Fills by one per item opened; when full the next open gets 10x luck.
+	- Bottom: total item luck with every source multiplied out, and the luck bar under it. The
+  bar fills by one per item opened; when full the next open gets 10x luck.
 	- Right: the personal luck stack (Robux, permanent, 2x then +2x each buy) and the server
 	  luck button with its three timed boosts.
 	- Top: a banner while server luck is running.
@@ -37,6 +38,25 @@ local serverButtonLabel: TextLabel
 local serverPanel: Frame
 local banner: Frame
 local bannerLabel: TextLabel
+local totalLabel: TextLabel
+local totalStroke: UIStroke
+
+-- "🍀 LUCK ×54  =  Upgrades ×2.6 × Pass ×2 × Personal ×8 × Server ×3"
+local function refreshTotal()
+	local luck = State.luck()
+	local parts = {}
+	for _, source in State.luckSources() do
+		if source.Mult > 1 then
+			table.insert(parts, `{source.Name} {Format.mult(source.Mult)}`)
+		end
+	end
+	local boosted = State.boostMult() > 1
+	totalLabel.Text = `🍀 LUCK {Format.mult(luck.Item)}`
+		.. (if #parts > 1 then `  =  {table.concat(parts, " × ")}` else "")
+		.. (if luck.Mutation > 1 then `   •   🧬 mutations {Format.mult(luck.Mutation)}` else "")
+	totalLabel.TextColor3 = if boosted then Colors.Gold elseif luck.Item > 1 then LUCK_GREEN else Colors.SubText
+	totalStroke.Color = if boosted then Colors.Gold else LUCK_GREEN
+end
 
 local function refreshBar()
 	local fill = GameConfig.LuckBar.RollsToFill
@@ -47,6 +67,7 @@ local function refreshBar()
 	barLabel.Text = if full
 		then `🍀 {GameConfig.LuckBar.Mult}x LUCK READY: your next open is boosted!`
 		else `🍀 Luck bar  {State.LuckBar} / {fill}  •  {GameConfig.LuckBar.Mult}x luck when full`
+	refreshTotal()
 end
 
 local function refreshPersonal()
@@ -54,6 +75,7 @@ local function refreshPersonal()
 	personalMult.Text = `{Format.mult(Catalog.personalLuckMult(buys + 1))}`
 	local price = Catalog.personalLuckPrice(buys)
 	personalPrice.Text = if price then `R$ {price}` else "MAX"
+	refreshTotal()
 end
 
 local function refreshServer()
@@ -72,6 +94,7 @@ local function refreshServer()
 	else
 		serverButtonLabel.Text = "Server"
 	end
+	refreshTotal()
 end
 
 local function build()
@@ -110,6 +133,28 @@ local function build()
 		Parent = bar,
 	})
 	Kit.new("UIStroke", { Color = Color3.new(0, 0, 0), Thickness = 1.5, Transparency = 0.3, Parent = barLabel })
+
+	-- Total luck, just above the bar.
+	local total = Kit.new("Frame", {
+		Name = "TotalLuck",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -54),
+		Size = UDim2.fromOffset(0, 28),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundColor3 = Colors.Panel,
+		BackgroundTransparency = 0.15,
+		Parent = layer,
+	}, { Kit.round(), Kit.padding(0, 14) })
+	totalStroke = Kit.stroke(LUCK_GREEN, 1.5)
+	totalStroke.Parent = total
+	totalLabel = Kit.label({
+		Size = UDim2.fromScale(0, 1),
+		AutomaticSize = Enum.AutomaticSize.X,
+		TextSize = 16,
+		FontFace = Fonts.Heavy,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Parent = total,
+	})
 
 	-- Right column
 	local right = Kit.new("Frame", {
@@ -267,6 +312,9 @@ function LuckHud.start()
 		end
 		if kind == "ServerLuck" or kind == "State" then
 			refreshServer()
+		end
+		if kind == "Luck" or kind == "Passes" then
+			refreshTotal()
 		end
 	end)
 	task.spawn(function()

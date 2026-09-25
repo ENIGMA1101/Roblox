@@ -79,7 +79,7 @@ function Roller.roll(
 	force: Force?,
 	soldOut: { [string]: boolean }?
 ): Roll?
-	local entries = Catalog.caseOdds(case, luck.Gem, soldOut, luck.Boosted)
+	local entries = Catalog.caseOdds(case, luck.Item, soldOut, luck.Boosted)
 	if #entries == 0 then
 		return nil
 	end

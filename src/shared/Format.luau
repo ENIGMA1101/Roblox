@@ -68,7 +68,10 @@ function Format.oneIn(p: number): string
 end
 
 function Format.mult(m: number): string
-	return "×" .. trimZeros(string.format("%.2f", m))
+	if m >= 1000 then
+		return "×" .. Format.short(m)
+	end
+	return "×" .. trimZeros(string.format(if m >= 100 then "%.0f" elseif m >= 10 then "%.1f" else "%.2f", m))
 end
 
 function Format.clock(seconds: number): string

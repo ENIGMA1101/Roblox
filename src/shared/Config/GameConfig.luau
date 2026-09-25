@@ -35,29 +35,34 @@ local GameConfig = {
 		OfflineMaxSeconds = 4 * 60 * 60,
 	},
 
-	-- The Luck pass. Mutation luck divides every mutation's OneIn. Gem luck multiplies the
-	-- chance of each case's gem rarities (taken from that case's most common rarity).
-	-- Gem luck is kept below 2x on purpose: gem pulls carry 40-60% of a case's value, so
-	-- doubling them would push cheap cases past 100% return and make the pass a money printer.
-	LuckPass = { Gem = 1.35, Mutation = 2 },
+	--[[
+		Luck. Item luck is every source multiplied together: upgrades x 2x Luck pass x personal
+		Robux stack x server luck x luck bar. It raises the chance of rare items (the rarer,
+		the bigger the boost; see Catalog.effectiveLuck). It never touches mutations.
 
-	-- Luck raises a case's gem odds only until the case would return MaxRTP of its price on
-	-- average, but always allows at least MinGain x the case's normal value. Without this, cases
-	-- that keep most of their value behind the gem would pay back far more than they cost.
-	-- Temporary boosts (server luck, a full luck bar) use the looser Boost limits, so a 10x
-	-- moment really pays off without turning a case into an unlimited money printer.
-	-- Both are measured on item value before mutations; mutation luck can add up to ~24% more.
-	LuckLimits = { MaxRTP = 0.85, MinGain = 1.15, BoostMaxRTP = 1.3, BoostMinGain = 1.6 },
+		FullGain: luck works at full strength until it has raised a case's return by this much
+		(0.75 = +75% of the case price). Beyond that it keeps helping but with diminishing,
+		logarithmic returns; Softness sets how quickly (bigger = more generous). The Boost
+		values apply while server luck or a full luck bar is active.
 
-	-- Luck upgrades bought with cash (the long-term cash sink). No max level: each level adds
-	-- GemPerLevel to the gem multiplier and MutationPerLevel to the mutation multiplier, and
-	-- level L -> L+1 costs BasePrice * PriceGrowth ^ L, so prices explode (level 20 ~$4.9B,
-	-- level 30 ~$3T, level 40 ~$1.9Q). Gem luck still obeys LuckLimits per case.
+		Mutation luck comes only from the Mutation Luck pass: it divides every mutation's OneIn.
+	]]
+	Luck = {
+		PassMult = 2,
+		MutationPassMult = 2,
+		FullGain = 0.75,
+		Softness = 0.5,
+		BoostFullGain = 2,
+		BoostSoftness = 1,
+	},
+
+	-- Luck upgrades bought with cash (the long-term cash sink). No max level: each level
+	-- multiplies item luck by PerLevel (level 10 = 2.6x, 20 = 6.7x, 30 = 17x, 40 = 45x), and
+	-- level L -> L+1 costs BasePrice * PriceGrowth ^ L (level 20 ~$4.9B, level 30 ~$3T).
 	LuckUpgrades = {
 		BasePrice = 25000,
 		PriceGrowth = 1.9,
-		GemPerLevel = 0.025,
-		MutationPerLevel = 0.1,
+		PerLevel = 1.1,
 	},
 
 	-- The luck bar at the bottom of the screen: every item opened adds 1. When it reaches

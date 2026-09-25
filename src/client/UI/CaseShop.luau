@@ -197,7 +197,7 @@ local function renderList(force: boolean?)
 			Text = if keys > 0
 				then `🔑 {keys} key{if keys == 1 then "" else "s"}`
 				else `{#case.Entries} items  •  gem {Format.oneIn(
-					Catalog.gemChance(case, State.luck().Gem, State.luck().Boosted)
+					Catalog.gemChance(case, State.luck().Item, State.luck().Boosted)
 				)}`,
 			TextSize = 14,
 			TextColor3 = if keys > 0 then Colors.Gold else Colors.SubText,
@@ -241,10 +241,22 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 		return order
 	end
 
-	local rarityOdds = Catalog.rarityOdds(case, luck.Gem, luck.Boosted)
-	sectionTitle(scroller, nextOrder(), "Rarity odds")
+	local rarityOdds = Catalog.rarityOdds(case, luck.Item, luck.Boosted)
+	local baseOdds: { [string]: number } = {}
+	for _, entry in Catalog.rarityOdds(case) do
+		baseOdds[entry.Id] = entry.P
+	end
+	local lucky = luck.Item > 1
+	sectionTitle(
+		scroller,
+		nextOrder(),
+		if lucky then `Rarity odds with your {Format.mult(luck.Item)} luck (normal odds in grey)` else "Rarity odds"
+	)
 	for i = #rarityOdds, 1, -1 do
 		local entry = rarityOdds[i]
+		local base = baseOdds[entry.Id] or entry.P
+		-- Show the improvement for rarities luck made more likely.
+		local improved = lucky and entry.P > base * 1.005
 		local rarity = Catalog.RarityById[entry.Id]
 		local r = row(scroller, nextOrder(), 34)
 		Kit.new("Frame", {
@@ -264,8 +276,13 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 		Kit.label({
 			AnchorPoint = Vector2.new(1, 0),
 			Position = UDim2.new(1, -12, 0, 0),
-			Size = UDim2.new(0.35, 0, 1, 0),
-			Text = Format.chance(entry.P),
+			Size = UDim2.new(0.5, 0, 1, 0),
+			Text = if improved
+				then `<font color="#8A8F9C">{Format.chance(base)}</font>  →  <font color="#50DC78">{Format.chance(
+					entry.P
+				)}</font>`
+				else Format.chance(entry.P),
+			RichText = true,
 			FontFace = Fonts.Heavy,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			Parent = r,
@@ -279,7 +296,7 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 			soldOutItems[entry.Item.Id] = true
 		end
 	end
-	local entries = Catalog.caseOdds(case, luck.Gem, soldOutItems, luck.Boosted)
+	local entries = Catalog.caseOdds(case, luck.Item, soldOutItems, luck.Boosted)
 	table.sort(entries, function(a, b)
 		return a.Item.Value > b.Item.Value
 	end)
@@ -380,7 +397,9 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 	sectionTitle(
 		scroller,
 		nextOrder(),
-		if case.GuaranteedMutation then "Mutations (guaranteed on every item)" else "Mutations (rolled on every item)"
+		if case.GuaranteedMutation
+			then "Mutations (guaranteed on every item)"
+			else "Mutations (rolled on every item; only the Mutation Luck pass changes these)"
 	)
 	local mutationOdds = Catalog.mutationOdds(luck.Mutation, case.GuaranteedMutation)
 	for i = #mutationOdds, 1, -1 do
@@ -425,13 +444,20 @@ local function renderOdds(case: Catalog.Case, scroller: ScrollingFrame)
 			"Limited: each item has a fixed supply. Sold-out items are removed and the rest share their odds."
 		)
 	end
-	if luck.Gem > 1 or luck.Mutation > 1 then
+	if luck.Item > 1 then
+		local effective = Catalog.effectiveLuck(case, luck.Item, luck.Boosted)
 		table.insert(
 			notes,
-			`Odds include your luck: gems {Format.mult(luck.Gem)}, mutations {Format.mult(luck.Mutation)}`
+			`Item odds include your {Format.mult(luck.Item)} luck`
 				.. (if State.boostMult() > 1 then ` (incl. a {Format.mult(State.boostMult())} boost right now)` else "")
-				.. ". Each case caps how far luck can raise its gem odds."
+				.. (if effective < luck.Item * 0.99
+					then `. This case has diminishing returns at that much luck: it rolls like {Format.mult(effective)} for its top item`
+					else "")
+				.. ". Grails and mutations are never affected by item luck."
 		)
+	end
+	if luck.Mutation > 1 then
+		table.insert(notes, `Mutation odds include your Mutation Luck pass ({Format.mult(luck.Mutation)}).`)
 	end
 	Kit.label({
 		LayoutOrder = nextOrder(),
